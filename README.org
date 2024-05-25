@@ -53,7 +53,7 @@ Clone this project locally and run:
 #+BEGIN_SRC shell
   make
 #+END_SRC
-It will generate a binary file named =expose= in the current path. Move it to your =$PATH= (e.g. =/usr/local/bin=).
+It will generate a binary file named =exposway= in the current path. Move it to your =$PATH= (e.g. =/usr/local/bin=).
 
 There is also a =collect.sh= script in this directory; rename it, make it executable, and move it to your =$PATH= as well:
 #+BEGIN_SRC shell
