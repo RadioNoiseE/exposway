@@ -2,6 +2,8 @@
 
 Chinese version available: [[file:README-zh_CN.org][README-zh_CN.org]].
 
+[[file:exposway.gif]]
+
 #+BEGIN_CENTER
 Bring MacOS X Expose-like features to life on swayWM!
 #+END_CENTER
@@ -12,7 +14,7 @@ Currently still in the experimental stage, contributions are welcome! See the 'C
 
 ** Introduction
 
-This project implements the feature of previewing all open application windows and quickly switching to the selected window under the swayWM window manager, influenced by MacOS X's Expose feature. It is similar to:
+This implements the feature to overview all opened applications' window and quickly switch to the selected window under the swayWM window manager. It's influenced by MacOS X's Expose feature, similar to:
 
 1. MacOS's Mission Control;
 2. Gnome's Activities Overview;
