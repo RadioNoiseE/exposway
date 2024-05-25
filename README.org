@@ -1,0 +1,120 @@
+* MacOS X Expose Feature Implementation on swayWM Window Manager
+
+Chinese version available: [[file:README-zh_CN.org][README-zh_CN.org]].
+
+#+BEGIN_CENTER
+Bring MacOS X Expose-like features to life on swayWM!
+#+END_CENTER
+
+** Version
+
+Currently still in the experimental stage, contributions are welcome! See the 'Contributions' section.
+
+** Introduction
+
+This project implements the feature of previewing all open application windows and quickly switching to the selected window under the swayWM window manager, influenced by MacOS X's Expose feature. It is similar to:
+
+1. MacOS's Mission Control;
+2. Gnome's Activities Overview;
+3. KDE's Present Windows.
+
+Currently this only supports Linux, not adapted to BSD (in planning).
+
+As far as I know, there is no such implementations under window managers. In swayWM, there is a similar thing called sov (Sway OverView), but it only provides workspace preview functionality without workspace snapshot preview. As they said:
+#+BEGIN_QUOTE
+  No down-scaled and confusing thumbnails, just crystal clear app names and titles.
+#+END_QUOTE
+
+The reason, I believe, is that it is difficult to obtain snapshots/status of all application windows without hacking the compositor under Wayland. This project solves this problem by using a bash script that starts with swayWM to read window update-related messages from sway-ipc, calling grim to take screenshots and storing them in a fixed directory, which will be discussed further in the 'FAQ' chapter.
+
+** Features
+
+Lightweight & Minimal dependencies.
+
+** Installation
+
+*** Dependencies
+
+| Dependency | Description                                                                   |
+|------------+-------------------------------------------------------------------------------|
+| swayWM     | Required                                                                      |
+| Wayland    | Required, tested version is 1.22.0                                            |
+| cairo      | Required for interface drawing                                                |
+| pango      | Required for text rendering                                                   |
+| xkbcommon  | Required for handling keyboard input                                          |
+| jq         | Used in =collect.sh= for parsing JSON, can be replaced                        |
+| grim       | Used in =collect.sh= for taking application window snapshots, can be replaced |
+
+*** Installation
+
+Clone this project locally and run:
+#+BEGIN_SRC shell
+  make
+#+END_SRC
+It will generate a binary file named =expose= in the current path. Move it to your =$PATH= (e.g. =/usr/local/bin=).
+
+There is also a =collect.sh= script in this directory; rename it, make it executable, and move it to your =$PATH= as well:
+#+BEGIN_SRC shell
+  mv collect.sh exposway-daemon
+  chmod +x exposway-daemon
+  doas mv exposway-daemon /usr/local/bin/
+#+END_SRC
+
+Then modify the swayWM configuration file, add:
+#+BEGIN_SRC shell
+  bindsym $mod+z exec exposway  # Trigger expose when the mod+z shortcut is pressed
+  exec exposway-daemon          # Execute daemon when swayWM starts
+#+END_SRC
+
+Finally, add environment variables, such by adding to the =~/.bashrc= file:
+#+BEGIN_SRC shell
+  export EXPOSWAYMON="$HOME/.local/state/exposway/output"
+  export EXPOSWAYDIR="$HOME/.local/state/exposway/"
+#+END_SRC
+This specifies the cache directory used by exposway, and if there's a need to change it, remember also to modify =collect.sh=.
+
+Now you can achieve the expose effect by pressing the shortcut key.
+
+** Usage
+
+After setting up as above and restarting the device, you will enter Expose mode after you press the designated shortcut key. When the arrow keys are pressed, a selection box will appear around the firstly created window. Press the arrow keys again to select the window you want to switch to and press space to jump to it.
+
+To exit directly, press the esc key.
+
+** Configuration
+
+Modify the =expose.h= header file and recompile. Configurable options include:
+
+- Selection box color/size/spacing;
+- Title size/color;
+- Monitor border/grid factor;
+- Key repeat.
+
+** FAQ
+
+When encountering issues, please first check the log file located at =$EXPOSWAYDIR/expose.log=.
+
+*** Application Snapshot Delay in Expose
+
+Due to the current implementation, the application snapshot is only updated when an event (focus/fullscreen/move/float/title change) occurs for a particular window and the focus is on that window when the event is triggered. You can add a periodic update function in the =collect.sh= script, but it has not been implemented for resource considerations.
+
+*** Incorrect Application Snapshots in Expose
+
+Also due to implementation limitations. Typical scenarios include:
+- When you switch to a workspace, automatically focus on a window (at this point, exposway-daemon triggers grim to update the window snapshot); then you quickly switch to another workspace. If the time you stay on that workspace is too short, grim will capture the snapshot of the last stayed workspace due to a slight delay.
+- When you open a window and then quickly create another window on top of it, grim will capture the snapshot of the occluded window; this generally does not happen unless it is not focused.
+
+** Contributions
+
+This project is still in the experimental stage and contributions are very welcome!
+
+Current features to be implemented (in order of importance):
+
+- More elegant/robust application snapshot acquisition;
+- Code optimization;
+- Improved Expose algorithm;
+- Gradual/fade-in and fade-out animations on startup and exit;
+
+Of course, other features are also welcomed. Fell free to open issues for discussion/open PRs.
+
+Please use LLVM for code style. For clangd related LSP, use =make compdb= to generate =complie_commands.json=.

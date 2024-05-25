@@ -1,0 +1,118 @@
+* swayWM 窗口管理器下的 MacOS X Expose 特性实现
+
+#+BEGIN_CENTER
+堂堂 swayWM，怎么能没有 Expose！
+#+END_CENTER
+
+** 版本
+
+当前仍处于实验状态，欢迎贡献！见『贡献』一节。
+
+** 介绍
+
+该项目实现了在 swayWM 窗口管理器下预览全部打开的应用窗口并快速切换至选中窗口的功能，受 MacOS X 的 Expose 功能影响，与以下功能相似：
+
+1. MacOS 的 Mission Control；
+2. Gnome 的 Activities Overview；
+3. KDE 的 Present Windows。
+
+当前仅支持 Linux，未适配 BSD（在计划中）。
+
+一直以来，在窗口管理器下很难找到类似特性的实现。在 swayWM 下功能类似的有 sov（Sway OverView），然仅提供预览工作区的功能，且无工作区快照预览的功能；用他们的话说是：
+#+BEGIN_QUOTE
+  No down-scaled and confusing thumbnails, just crystal clear app names and titles.
+#+END_QUOTE
+
+究其原因，我认为是 Wayland 下在不 hack 合成器的情况下难以获得全部应用窗口的快照／状态。本项目通过使用随 swayWM 启动一个 bash 脚本读取 sway-ipc 的窗口更新相关的消息，调用 grim 截图并存取在固定目录下解决该问题，其带来的问题将会在『常见问题』一章讨论。
+
+** 特性
+
+轻量／最小化依赖。
+
+** 安装
+
+*** 依赖
+
+| 依赖       | 说明                                          |
+|-----------+----------------------------------------------|
+| swayWM    | 必要                                          |
+| Wayland   | 必要、测试版本为 1.22.0                       |
+| cairo     | 界面绘制、必要                                |
+| pango     | 文字渲染、必要                                |
+| xkbcommon | 必要、处理键盘输入                            |
+| jq        | 解析 JSON、于=collect.sh=中使用、可替换         |
+| grim      | 获取应用窗口快照、于=collect.sh=中使用、可替换 |
+
+*** 安装
+
+将本项目克隆至本地后，运行：
+#+BEGIN_SRC shell
+  make
+#+END_SRC
+会在当前路径下生成名为=expose=的二进制文件。将其移动至=$PATH=下（如=/usr/local/bin=）。
+
+该目录下还有一个=collect.sh=，将其重命名并赋予可执行权限后同样移动至=$PATH=下：
+#+BEGIN_SRC shell
+  mv collect.sh exposway-daemon
+  chmod +x exposway-daemon
+  doas mv exposway-daemon /usr/local/bin/
+#+END_SRC
+
+随后修改 swayWM 配置文件，加入：
+#+BEGIN_SRC shell
+  bindsym $mod+z exec exposway  # 当mod与z的组合键被按下时触发expose
+  exec exposway-daemon          # 当swayWM启动时执行daemon
+#+END_SRC
+
+最后添加环境变量，如在=~/.bashrc=文件中加入：
+#+BEGIN_SRC shell
+  export EXPOSWAYMON="$HOME/.local/state/exposway/output"
+  export EXPOSWAYDIR="$HOME/.local/state/exposway/"
+#+END_SRC
+即指定 exposway 使用的缓存地址，若有更改需求需同时修改=collect.sh=。
+
+以上步骤即可实现按下快捷键出现 expose 的效果。
+
+** 使用
+
+如上设置并重启设备后，按下所设定快捷键后就会进入 Expose 状态。当上下左右的方向键被按下后，最早被创建的窗口周围会出现选择框。再次按下前后左右键选择需要跳转的窗口并按空格跳转。
+
+如需直接退出可按下 esc 键。
+
+** 配置
+
+修改=expose.h=头文件并重新编译即可。可配置选项有：
+
+- 选定框颜色／尺寸／间隔；
+- 标题尺寸／颜色；
+- 显示器边框／网格因子；
+- 按键重复。
+
+** 常见问题
+
+当遇到问题时，首先请查看位于=$EXPOSWAYDIR/expose.log=的日志文件。
+
+*** Expose 中的应用快照截屏滞后
+
+由于当前实现方式，仅在某窗口触发事件更新（被关注／全屏／移动／浮动／标题改变）且触发更新时焦点在该窗口之上时才会更新应用快照。可以通过在=collect.sh=脚本中增加定时更新的功能，但由于资源占用最优的考虑没有实现。
+
+*** Expose 中的应用快照错误
+
+同时由于实现的限制。典型场景有：
+- 当你切换至一个工作区，自动关注了某个窗口（这时 exposway-daemon 触发 grim 更新该窗口快照）；随后你又迅速切换到了另一个工作区，由于 grim 截图有细微的延迟，如果你在该工作区停留的时间太短，grim 所取即最后停留的工作区的快照；
+- 当你开启一个窗口后迅速在它上面创建了一个遮挡它的窗口，grim 所取即被遮挡的快照；这种情况一般不会发生，只要它不被关注。
+
+** 贡献
+
+当前该项目仍处于实验状态，超级欢迎贡献！
+
+当前待实现的特性有（按重要程度排序）：
+
+- 更优雅／健壮的应用快照获取；
+- 代码优化；
+- 改进 Expose 算法；
+- 启动和退出时渐进／淡出等动画效果；
+
+当然，其他的特性也欢迎开 issue 讨论／发 PR。
+
+代码风格请使用 LLVM。对于 clangd 系的 LSP，使用=make compdb=生成=complie_commands.json=。
