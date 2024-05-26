@@ -1,4 +1,4 @@
-* MacOS X Expose Feature Implementation on swayWM Window Manager
+* MacOS X Expose Feature Implementation on swayWM
 
 Chinese version available: [[file:README-zh_CN.org][README-zh_CN.org]].
 
@@ -10,24 +10,24 @@ Bring MacOS X Expose-like features to life on swayWM!
 
 ** Version
 
-Currently still in the experimental stage, contributions are welcome! See the 'Contributions' section.
+Currently still in the experimental stage, contributions are welcomed! See the 'Contributions' section.
 
 ** Introduction
 
-This implements the feature to overview all opened applications' window and quickly switch to the selected window under the swayWM window manager. It's influenced by MacOS X's Expose feature, similar to:
+This implements the feature to overview all opened applications' window and quickly switch to the selected window under the swayWM window manager. It's inspired by MacOS X's Expose feature, similar to:
 
 1. MacOS's Mission Control;
 2. Gnome's Activities Overview;
 3. KDE's Present Windows.
 
-Currently this only supports Linux, not adapted to BSD (in planning).
+Currently this only supports Linux, and not yet being adapted to BSD (though in the roadmap).
 
 As far as I know, there is no such implementations under window managers. In swayWM, there is a similar thing called sov (Sway OverView), but it only provides workspace preview functionality without workspace snapshot preview. As they said:
 #+BEGIN_QUOTE
   No down-scaled and confusing thumbnails, just crystal clear app names and titles.
 #+END_QUOTE
 
-The reason, I believe, is that it is difficult to obtain snapshots/status of all application windows without hacking the compositor under Wayland. This project solves this problem by using a bash script that starts with swayWM to read window update-related messages from sway-ipc, calling grim to take screenshots and storing them in a fixed directory, which will be discussed further in the 'FAQ' chapter.
+The reason, I believe, is that it's difficult to obtain snapshots/status of all application windows without hacking the compositor under Wayland. This program solves this problem by using a bash script that launches with swayWM to receive windows' update-related messages from sway-ipc, then calling grim to take screenshots and storing them in a cache directory, which will be further discussed in the 'FAQ' chapter.
 
 ** Features
 
@@ -41,8 +41,8 @@ Lightweight & Minimal dependencies.
 |------------+-------------------------------------------------------------------------------|
 | swayWM     | Required                                                                      |
 | Wayland    | Required, tested version is 1.22.0                                            |
-| cairo      | Required for interface drawing                                                |
-| pango      | Required for text rendering                                                   |
+| Cairo      | Required for interface drawing                                                |
+| Pango      | Required for text rendering                                                   |
 | xkbcommon  | Required for handling keyboard input                                          |
 | jq         | Used in =collect.sh= for parsing JSON, can be replaced                        |
 | grim       | Used in =collect.sh= for taking application window snapshots, can be replaced |
@@ -53,7 +53,7 @@ Clone this project locally and run:
 #+BEGIN_SRC shell
   make
 #+END_SRC
-It will generate a binary file named =exposway= in the current path. Move it to your =$PATH= (e.g. =/usr/local/bin=).
+It will generate a binary named =exposway= in the current path. Move it to your =$PATH= (e.g. =/usr/local/bin=).
 
 There is also a =collect.sh= script in this directory; rename it, make it executable, and move it to your =$PATH= as well:
 #+BEGIN_SRC shell
@@ -81,7 +81,7 @@ Now you can achieve the expose effect by pressing the shortcut key.
 
 After setting up as above and restarting the device, you will enter Expose mode after you press the designated shortcut key. When the direction keys are pressed, a selection box will appear around the firstly created window. Press the arrow keys again to select the window you want to switch to and press space to jump to it.
 
-To exit directly, press the esc key.
+To exit directly, press the `esc` key.
 
 ** Configuration
 
@@ -103,20 +103,22 @@ Due to the current implementation, the application snapshot is only updated when
 *** Incorrect Application Snapshots in Expose
 
 Also due to implementation limitations. Typical scenarios include:
-- When you switch to a workspace, automatically focus on a window (at this point, exposway-daemon triggers grim to update the window snapshot); then you quickly switch to another workspace. If the time you stay on that workspace is too short, grim will capture the snapshot of the last stayed workspace due to a slight delay.
-- When you open a window and then quickly create another window on top of it, grim will capture the snapshot of the occluded window; this generally does not happen unless it is not focused.
+- When you switch to a workspace, automatically focus on a window (at this point, exposway-daemon calls grim to update the window snapshot); then you quickly switch to another workspace. If the time you stay on that workspace is too short, grim will capture the snapshot of the last stayed workspace due to a slight delay of grim.
+- When you open a window and then quickly create another window on top of it, grim will capture the snapshot of the occluded window; this generally won't happen as the first window wouldn't gain focus.
 
 ** Contributions
 
-This project is still in the experimental stage and contributions are very welcome!
+This project is still in the vary experimental stage and contributions are very welcomed!
 
-Current features to be implemented (in order of importance):
+Features planned to be implemented (in order of priority):
 
 - More elegant/robust application snapshot acquisition;
-- Code optimization;
+- Code optimization such as frame redraw mechanism;
 - Improved Expose algorithm;
+- Improved windows traversing algorithm;
 - Gradual/fade-in and fade-out animations on startup and exit;
+- Use mouse to select windows.
 
-Of course, other features are also welcomed. Fell free to open issues for discussion/open PRs.
+Any other new features are also welcomed. Fell free to open issues for discussion/open PRs.
 
 Please use LLVM for code style. For clangd related LSP, use =make compdb= to generate =complie_commands.json=.
