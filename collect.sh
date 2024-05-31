@@ -32,28 +32,27 @@ echo "$(swaymsg -t get_outputs | jq -r '.[] | select(.focused).rect | "\(.width)
 log "monitor geometry written (to output)"
 
 swaymsg -mt subscribe '["window"]' |\
-#jq --unbuffered -c 'select(.container.focused?)' |\
-while read -r win; do
-    stat=$(jq -r '.change' <<< "$win")
-    reference=$(jq -r '.container.name' <<< "$win")
-    node=$(jq -r '.container.id' <<< "$win")
-    refresh=("focus" "fullscreen_mode" "move" "floating" ) # when urgent or marked we take no measure, when newed or title changed the geometry hasn't yet been initialized
-    delete=("close") # circumstance when snapshot needs to be destroyed
-    if [[ "$reference" =~ "Expose Sway" ]]; then
-        log "* expose!"
-    elif [[ "$refresh[*]" =~ "$stat" ]]; then
-        # sleep 1 # nasty hack to ensure that the window has already being rendered, especially for things like firefox
-        log "* node $node info"
-	log "  refresh: $stat"
-        geometry=$(jq -j '.container.rect | "\(.x),\(.y) \(.width)x\(.height)"' <<< $win)
-        echo "$geometry $reference" > "$node"
-	log "  geometry: $geometry"
-	log "  reference: $reference"
-        grim -g "$geometry" "${node}.png"
-    elif [[ "$delete" =~ "$stat" ]]; then
-        rm "$node" "${node}.png"
-	log "! node $node destroyed"
-    else
-        continue
-    fi
-done
+    #jq --unbuffered -c 'select(.container.focused?)' |\
+    while read -r win; do
+        stat=$(jq -r '.change' <<< "$win")
+        reference=$(jq -r '.container.name' <<< "$win")
+        node=$(jq -r '.container.id' <<< "$win")
+        refresh=("focus" "fullscreen_mode" "move" "floating" ) # when urgent or marked we take no measure, when newed or title changed the geometry hasn't yet been initialized
+        delete=("close") # circumstance when snapshot needs to be destroyed
+        if [[ "$reference" =~ "Expose Sway" ]]; then
+            log "* expose!"
+        elif [[ "$refresh[*]" =~ "$stat" ]]; then
+            log "* node $node info"
+	          log "  refresh: $stat"
+            geometry=$(jq -j '.container.rect | "\(.x),\(.y) \(.width)x\(.height)"' <<< $win)
+            echo "$geometry $reference" > "$node"
+	          log "  geometry: $geometry"
+	          log "  reference: $reference"
+            grim -g "$geometry" "${node}.png"
+        elif [[ "$delete" =~ "$stat" ]]; then
+            rm "$node" "${node}.png"
+	          log "! node $node destroyed"
+        else
+            continue
+        fi
+    done
