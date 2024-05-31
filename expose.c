@@ -14,6 +14,7 @@
 #include <sys/mman.h>
 #include <time.h>
 #include <unistd.h>
+#include <wayland-client-protocol.h>
 #include <wayland-client.h>
 #include <xkbcommon/xkbcommon.h>
 
@@ -196,7 +197,7 @@ static void focus_window(int node_id) {
 
 static void wl_keyboard_keymap(void *data, struct wl_keyboard *wl_keyboard,
                                uint32_t format, int32_t fd, uint32_t size) {
-  struct client_state *state = (struct client_state *)data;
+  struct client_state *state = data;
 
   char *map_shm = mmap(NULL, size, PROT_READ, MAP_PRIVATE, fd, 0);
   ASSERT(map_shm != MAP_FAILED, "failed to mmap keymap");
@@ -216,7 +217,7 @@ static void wl_keyboard_keymap(void *data, struct wl_keyboard *wl_keyboard,
 static void wl_keyboard_key(void *data, struct wl_keyboard *wl_keyboard,
                             uint32_t serial, uint32_t time, uint32_t key,
                             uint32_t state_) {
-  struct client_state *state = (struct client_state *)data;
+  struct client_state *state = data;
 
   xkb_keycode_t keycode = key + 8;
   xkb_keysym_t keysym = xkb_state_key_get_one_sym(state->xkb_state, keycode);
@@ -274,7 +275,7 @@ static void wl_keyboard_modifiers(void *data, struct wl_keyboard *wl_keyboard,
                                   uint32_t serial, uint32_t mods_depressed,
                                   uint32_t mods_latched, uint32_t mods_locked,
                                   uint32_t group) {
-  struct client_state *state = (struct client_state *)data;
+  struct client_state *state = data;
   xkb_state_update_mask(state->xkb_state, mods_depressed, mods_latched,
                         mods_locked, 0, 0, group);
 }
