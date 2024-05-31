@@ -280,15 +280,11 @@ static void wl_keyboard_modifiers(void *data, struct wl_keyboard *wl_keyboard,
 }
 
 static void wl_keyboard_repeat_info(void *data, struct wl_keyboard *wl_keyboard,
-                                    int32_t rate, int32_t delay) {
-  /* dummy implementation */
-}
+                                    int32_t rate, int32_t delay) {}
 
 static void wl_keyboard_enter(void *data, struct wl_keyboard *wl_keyboard,
                               uint32_t serial, struct wl_surface *surface,
-                              struct wl_array *keys) {
-  /* dummy implementation */
-}
+                              struct wl_array *keys) {}
 
 static const struct wl_keyboard_listener wl_keyboard_listener = {
     .keymap = wl_keyboard_keymap,
