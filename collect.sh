@@ -43,15 +43,15 @@ swaymsg -mt subscribe '["window"]' |\
             log "* expose!"
         elif [[ "$refresh[*]" =~ "$stat" ]]; then
             log "* node $node info"
-	          log "  refresh: $stat"
+	    log "  refresh: $stat"
             geometry=$(jq -j '.container.rect | "\(.x),\(.y) \(.width)x\(.height)"' <<< $win)
             echo "$geometry $reference" > "$node"
-	          log "  geometry: $geometry"
-	          log "  reference: $reference"
+	    log "  geometry: $geometry"
+	    log "  reference: $reference"
             grim -g "$geometry" "${node}.png"
         elif [[ "$delete" =~ "$stat" ]]; then
             rm "$node" "${node}.png"
-	          log "! node $node destroyed"
+	    log "! node $node destroyed"
         else
             continue
         fi
