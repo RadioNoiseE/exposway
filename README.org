@@ -2,7 +2,7 @@
 
 Chinese version available: [[file:README-zh_CN.org][README-zh_CN.org]].
 
-[[file:exposway.gif]]
+[[file:exposway.png]]
 
 #+BEGIN_CENTER
 Bring MacOS X Expose-like features to life on swayWM!
