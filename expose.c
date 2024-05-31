@@ -123,37 +123,59 @@ static void find_nearest_window(struct client_state *state, char dir) {
 
   for (int n = 0; n < state->window_sum; n++) {
     if (n != state->focused_window) {
-      double xsep =
+      int xsep =
           state->window[n].xcr - state->window[state->focused_window].xcr;
-      double ysep =
+      int ysep =
           state->window[n].ycr - state->window[state->focused_window].ycr;
-      bool valid_candidate = false;
 
       switch (dir) {
       case 'u':
-        if (ysep < 0)
-          valid_candidate = true;
+        if (ysep < 0 &&
+            abs(xsep) < state->window[state->focused_window].width *
+                            state->window[state->focused_window].scale_factor &&
+            abs(xsep) <
+                state->window[n].width * state->window[n].scale_factor) {
+          double distance = xsep * xsep + ysep * ysep;
+          if (distance < nearest_distance) {
+            nearest_distance = distance;
+            nearest_window = n;
+          }
+        }
         break;
       case 'd':
-        if (ysep > 0)
-          valid_candidate = true;
+        if (ysep > 0 &&
+            abs(xsep) < state->window[state->focused_window].width *
+                            state->window[state->focused_window].scale_factor &&
+            abs(xsep) <
+                state->window[n].width * state->window[n].scale_factor) {
+          double distance = xsep * xsep + ysep * ysep;
+          if (distance < nearest_distance) {
+            nearest_distance = distance;
+            nearest_window = n;
+          }
+        }
         break;
       case 'l':
-        if (xsep < 0)
-          valid_candidate = true;
+        if (xsep < 0 && abs(ysep) < state->window[n].height *
+                                        state->window[n].scale_factor) {
+          double distance = xsep * xsep + ysep * ysep;
+          if (distance < nearest_distance) {
+            nearest_distance = distance;
+            nearest_window = n;
+          }
+        }
         break;
       case 'r':
-        if (xsep > 0)
-          valid_candidate = 1;
-        break;
-      }
-
-      if (valid_candidate) {
-        double distance = sqrt(xsep * xsep + ysep * ysep);
-        if (distance < nearest_distance) {
-          nearest_distance = distance;
-          nearest_window = n;
+        if (xsep > 0 &&
+            abs(ysep) < state->window[state->focused_window].height *
+                            state->window[state->focused_window].scale_factor) {
+          double distance = xsep * xsep + ysep * ysep;
+          if (distance < nearest_distance) {
+            nearest_distance = distance;
+            nearest_window = n;
+          }
         }
+        break;
       }
     }
   }
@@ -205,37 +227,43 @@ static void wl_keyboard_key(void *data, struct wl_keyboard *wl_keyboard,
     xkb_state_update_key(state->xkb_state, keycode, XKB_KEY_UP);
   }
 
-  if (keysym == XKB_KEY_Escape) {
+  switch (keysym) {
+  case XKB_KEY_Escape:
     state->closed = true;
-  } else if (keysym == XKB_KEY_Left) {
+    return;
+  case XKB_KEY_Left:
     if (!state->frame_render) {
       state->frame_render = true;
       return;
     }
     state->frame_render = true;
     find_nearest_window(state, 'l');
-  } else if (keysym == XKB_KEY_Right) {
+    return;
+  case XKB_KEY_Right:
     if (!state->frame_render) {
       state->frame_render = true;
       return;
     }
     state->frame_render = true;
     find_nearest_window(state, 'r');
-  } else if (keysym == XKB_KEY_Up) {
+    return;
+  case XKB_KEY_Up:
     if (!state->frame_render) {
       state->frame_render = true;
       return;
     }
     state->frame_render = true;
     find_nearest_window(state, 'u');
-  } else if (keysym == XKB_KEY_Down) {
+    return;
+  case XKB_KEY_Down:
     if (!state->frame_render) {
       state->frame_render = true;
       return;
     }
     state->frame_render = true;
     find_nearest_window(state, 'd');
-  } else if (keysym == XKB_KEY_space) {
+    return;
+  case XKB_KEY_space:
     focus_window(state->window[state->focused_window].node);
     state->closed = true;
     return;
@@ -278,12 +306,12 @@ static const struct wl_buffer_listener wl_buffer_listener = {
     .release = wl_buffer_release,
 };
 
-int compare_scaled_width(const void *a, const void *b) {
-  struct wl_window *wa = *(struct wl_window **)a;
-  struct wl_window *wb = *(struct wl_window **)b;
-  float scaled_width_a = wa->width * wa->scale_factor;
-  float scaled_width_b = wb->width * wb->scale_factor;
-  return (scaled_width_b < scaled_width_a) - (scaled_width_b > scaled_width_a);
+int compare_scaled_width(const void *aw, const void *bw) {
+  struct wl_window *wa = *(struct wl_window **)aw;
+  struct wl_window *wb = *(struct wl_window **)bw;
+  float swa = wa->width * wa->scale_factor;
+  float swb = wb->width * wb->scale_factor;
+  return (swb < swa) - (swb > swa);
 }
 
 void expose_layout_alloc(struct client_state *state) {
@@ -316,40 +344,38 @@ void expose_layout_alloc(struct client_state *state) {
     float height_scale = cell_height / win->height * WIN_GRID_FACTOR;
     win->scale_factor =
         (width_scale < height_scale) ? width_scale : height_scale;
+    if (win->width == win->height)
+      win->scale_factor *= WIN_QUAD_FACTOR;
   }
 
   qsort(windows_ptrs, total_windows, sizeof(struct wl_window *),
         compare_scaled_width);
 
   int *windows_per_row = malloc(grid_rows * sizeof(int));
-  for (int i = 0; i < grid_rows; ++i) {
+  for (int i = 0; i < grid_rows; ++i)
     windows_per_row[i] = grid_cols;
-  }
-
-  for (int i = 0; i < missing_windows; ++i) {
+  for (int i = 0; i < missing_windows; ++i)
     windows_per_row[grid_rows - 1 - i]--;
-  }
 
   int current_window = 0;
   for (int row = 0; row < grid_rows; ++row) {
     int cols_in_this_row = windows_per_row[row];
 
-    float row_gap = (cols_in_this_row - 1) * DISPLAY_GAP;
+    float row_gap = (cols_in_this_row - 1) * WIN_GRID_GAP;
     float adjusted_cell_width = (available_width - row_gap) / cols_in_this_row;
 
     int start_col = (grid_cols - cols_in_this_row) / 2;
 
     for (int col = start_col; col < start_col + cols_in_this_row; ++col) {
-      if (current_window >= total_windows) {
+      if (current_window >= total_windows)
         break;
-      }
       struct wl_window *win = windows_ptrs[current_window];
       current_window++;
 
       float final_width = win->width * win->scale_factor;
       float final_height = win->height * win->scale_factor;
 
-      win->xcr = DISPLAY_GAP + col * (adjusted_cell_width + DISPLAY_GAP) +
+      win->xcr = DISPLAY_GAP + col * (adjusted_cell_width + WIN_GRID_GAP) +
                  (adjusted_cell_width - final_width) / 2;
       win->ycr =
           DISPLAY_GAP + row * cell_height + (cell_height - final_height) / 2;
