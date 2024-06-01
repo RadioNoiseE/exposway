@@ -79,9 +79,9 @@ Now you can achieve the expose effect by pressing the shortcut key.
 
 ** Usage
 
-After setting up as above and restarting the device, you will enter Expose mode after you press the designated shortcut key. When the direction keys are pressed, a selection box will appear around the firstly created window. Press the arrow keys again to select the window you want to switch to and press space to jump to it.
+After setting up as above and restarting the device, you will enter Expose mode after you press the designated shortcut key. When the direction keys are pressed, a selection box will appear around the firstly created window. Press the arrow keys again to select the window you want to switch to and press =space= to jump to it.
 
-To exit directly, press the `esc` key.
+To exit directly, press the =esc= key.
 
 ** Configuration
 
