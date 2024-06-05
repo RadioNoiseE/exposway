@@ -32,7 +32,7 @@ echo "$(swaymsg -t get_outputs | jq -r '.[] | select(.focused).rect | "\(.width)
 log "monitor geometry written (to output)"
 
 swaymsg -mt subscribe '["window"]' |\
-    jq --unbuffered -c 'select(.container.focused?)' |\
+    #jq --unbuffered -c 'select(.container.focused?)' |\
     while read -r win; do
         stat=$(jq -r '.change' <<< "$win")
         reference=$(jq -r '.container.name' <<< "$win")
