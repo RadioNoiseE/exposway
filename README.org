@@ -53,13 +53,9 @@ Clone this project locally and run:
 #+BEGIN_SRC shell
   make
 #+END_SRC
-It will generate a binary named =exposway= in the current path. Move it to your =$PATH= (e.g. =/usr/local/bin=).
-
-There is also a =collect.sh= script in this directory; rename it, make it executable, and move it to your =$PATH= as well:
-#+BEGIN_SRC shell
-  mv collect.sh exposway-daemon
-  chmod +x exposway-daemon
-  doas mv exposway-daemon /usr/local/bin/
+By default it uses =doas= instead of =sudo=, =clang= as the default C compiler and installs the binary to =/usr/local=, to change this behaviour, use:
+#+BEGIN_SRC
+  make CC=gcc SU=sudo PREFIX=/usr # use gcc as compiler, sudo and install binary to /usr/bin/*
 #+END_SRC
 
 Then modify the swayWM configuration file, add:
@@ -94,7 +90,7 @@ Modify the =expose.h= header file and recompile. Configurable options include:
 
 ** FAQ
 
-When encountering issues, please first check the log file located at =$EXPOSWAYDIR/expose.log=.
+When encountering issues, please first launch the =exposway-daemon= using the =-d= option and run =exposway= in the terminal, then check the log file located at =$EXPOSWAYDIR/expose.log=.
 
 *** Application Snapshot Delay in Expose
 

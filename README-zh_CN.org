@@ -40,8 +40,8 @@
 | cairo     | 界面绘制、必要                                |
 | pango     | 文字渲染、必要                                |
 | xkbcommon | 必要、处理键盘输入                            |
-| jq        | 解析 JSON、于=collect.sh=中使用、可替换         |
-| grim      | 获取应用窗口快照、于=collect.sh=中使用、可替换 |
+| jq        | 解析 JSON、于 =collect.sh= 中使用、可替换       |
+| grim      | 获取应用窗口快照、于 =collect.sh= 中使用、可替换 |
 
 *** 安装
 
@@ -49,14 +49,7 @@
 #+BEGIN_SRC shell
   make
 #+END_SRC
-会在当前路径下生成名为=expose=的二进制文件。将其移动至=$PATH=下（如=/usr/local/bin=）。
 
-该目录下还有一个=collect.sh=，将其重命名并赋予可执行权限后同样移动至=$PATH=下：
-#+BEGIN_SRC shell
-  mv collect.sh exposway-daemon
-  chmod +x exposway-daemon
-  doas mv exposway-daemon /usr/local/bin/
-#+END_SRC
 
 随后修改 swayWM 配置文件，加入：
 #+BEGIN_SRC shell
@@ -64,12 +57,12 @@
   exec exposway-daemon          # 当swayWM启动时执行daemon
 #+END_SRC
 
-最后添加环境变量，如在=~/.bashrc=文件中加入：
+最后添加环境变量，如在 =~/.bashrc= 文件中加入：
 #+BEGIN_SRC shell
   export EXPOSWAYMON="$HOME/.local/state/exposway/output"
   export EXPOSWAYDIR="$HOME/.local/state/exposway/"
 #+END_SRC
-即指定 exposway 使用的缓存地址，若有更改需求需同时修改=collect.sh=。
+即指定 exposway 使用的缓存地址，若有更改需求需同时修改 =collect.sh= 。
 
 以上步骤即可实现按下快捷键出现 expose 的效果。
 
@@ -81,7 +74,7 @@
 
 ** 配置
 
-修改=expose.h=头文件并重新编译即可。可配置选项有：
+修改 =expose.h= 头文件并重新编译即可。可配置选项有：
 
 - 选定框颜色／尺寸／间隔；
 - 标题尺寸／颜色；
@@ -90,11 +83,11 @@
 
 ** 常见问题
 
-当遇到问题时，首先请查看位于=$EXPOSWAYDIR/expose.log=的日志文件。
+当遇到问题时，首先请使用 =exposway-daemon -d= 并查看位于 =$EXPOSWAYDIR/expose.log= 的日志文件、或在终端中启动 =exposway= 查看断言错误。
 
 *** Expose 中的应用快照截屏滞后
 
-由于当前实现方式，仅在某窗口触发事件更新（被关注／全屏／移动／浮动／标题改变）且触发更新时焦点在该窗口之上时才会更新应用快照。可以通过在=collect.sh=脚本中增加定时更新的功能，但由于资源占用最优的考虑没有实现。
+由于当前实现方式，仅在某窗口触发事件更新（被关注／全屏／移动／浮动／标题改变）且触发更新时焦点在该窗口之上时才会更新应用快照。可以通过在 =collect.sh= 脚本中增加定时更新的功能，但由于资源占用最优的考虑没有实现。
 
 *** Expose 中的应用快照错误
 

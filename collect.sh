@@ -43,22 +43,22 @@ swaymsg -mt subscribe '["window"]' |\
         stat=$(jq -r '.change' <<< "$win")
         reference=$(jq -r '.container.name' <<< "$win")
         node=$(jq -r '.container.id' <<< "$win")
-	      focused=$(jq -r '.container.focused' <<< "$win")
+        focused=$(jq -r '.container.focused' <<< "$win")
         refresh=("focus" "fullscreen_mode" "move" "floating" "title") # when urgent or marked we take no measure, when newed the geometry hasn't yet been initialized
         delete=("close") # circumstance when snapshot needs to be destroyed
         if [[ "$reference" =~ "Expose Sway" ]]; then
             log "# expose!"
         elif [[ "${refresh[*]}" =~ "$stat" && "$focused" = "true" ]]; then
             log "* node $node info"
-	          log "  refresh: $stat"
+            log "  refresh: $stat"
             geometry=$(jq -j '.container.rect | "\(.x),\(.y) \(.width)x\(.height)"' <<< "$win")
             echo "$geometry $reference" > "$node"
-	          log "  geometry: $geometry"
-	          log "  reference: $reference"
+            log "  geometry: $geometry"
+            log "  reference: $reference"
             grim -g "$geometry" "${node}.png"
         elif [[ "${delete[*]}" =~ "$stat" ]]; then
             rm "$node" "${node}.png"
-	          log "! node $node destroyed"
+            log "! node $node destroyed"
         else
             continue
         fi
