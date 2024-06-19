@@ -28,6 +28,7 @@ install: exposway collect.sh
 	$(SU) cp collect.sh $(PREFIX)/bin/exposway-daemon
 	$(SU) chmod +x $(PREFIX)/bin/exposway-daemon
 	$(SU) cp exposway $(PREFIX)/bin/exposway
+	$(SU) strip $(PREFIX)/bin/exposway
 
 compdb: exposway
 	clang -MJ expose.o.json -Wall -o expose.o -c expose.c \
