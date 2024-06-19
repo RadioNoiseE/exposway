@@ -189,7 +189,7 @@ static void find_nearest_window(struct client_state *state, char dir) {
 
 static void focus_window(int node_id) {
   char focus_command[256];
-  snprintf(focus_command, sizeof(focus_command), "swaymsg [con_id=%d] focus",
+  snprintf(focus_command, sizeof(focus_command), "sleep 0.36; swaymsg [con_id=%d] focus",
            node_id);
   pid_t swayipc_pid = fork();
   ASSERT(swayipc_pid != 0, "failed to create new process");
