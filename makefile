@@ -1,4 +1,7 @@
 CC:=clang
+SU:=doas
+PREFIX:=/usr/local
+
 WAYLAND_PROTOCOLS=$(shell pkg-config --variable=pkgdatadir wayland-protocols)
 WAYLAND_SCANNER=$(shell pkg-config --variable=wayland_scanner wayland-scanner)
 LIBS=\
@@ -21,6 +24,11 @@ exposway: expose.c expose.h xdg-shell-client-protocol.h xdg-shell-protocol.c
 		xdg-shell-protocol.c \
 		$(LIBS)
 
+install: exposway collect.sh
+	$(SU) cp collect.sh $(PREFIX)/bin/exposway-daemon
+	$(SU) chmod +x $(PREFIX)/bin/exposway-daemon
+	$(SU) cp exposway $(PREFIX)/bin/exposway
+
 compdb: exposway
 	clang -MJ expose.o.json -Wall -o expose.o -c expose.c \
 		$(LIBS)
@@ -30,5 +38,5 @@ compdb: exposway
 clean:
 	rm -f exposway xdg-shell-client-protocol.h xdg-shell-protocol.c compile_commands.json
 
-.DEFAULT_GOAL=exposway
+.DEFAULT_GOAL=install
 .PHONY: clean
