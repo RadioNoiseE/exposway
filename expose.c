@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
+#include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
 #include <wayland-client.h>
@@ -190,8 +191,9 @@ static void focus_window(int node_id) {
   char focus_command[256];
   snprintf(focus_command, sizeof(focus_command), "swaymsg [con_id=%d] focus",
            node_id);
-  ASSERT((system(focus_command) != -1),
-         "error occurred when executing the command to focus window");
+  pid_t swayipc_pid = fork();
+  ASSERT(swayipc_pid != 0, "failed to create new process");
+  execl("/bin/sh", "sh", "-c", focus_command, (char *)NULL);
 }
 
 static void wl_keyboard_keymap(void *data, struct wl_keyboard *wl_keyboard,

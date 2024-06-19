@@ -9,4 +9,4 @@
 #define WIN_GRID_GAP 16             /* minimum amount of gap between windows */
 #define WIN_GRID_FACTOR 0.78        /* factor controlling the gap between window and grid */
 #define WIN_QUAD_FACTOR 0.9         /* factor to scale down on square windows (optimal) */
-#define DEBOUNCE_DELAY_MS 300       /* key repeat */
+#define DEBOUNCE_DELAY_MS 400       /* key repeat */
