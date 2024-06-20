@@ -10,3 +10,4 @@
 #define WIN_GRID_FACTOR 0.78        /* factor controlling the gap between window and grid */
 #define WIN_QUAD_FACTOR 0.9         /* factor to scale down on square windows (optimal) */
 #define DEBOUNCE_DELAY_MS 400       /* key repeat */
+#define DELAY_SEC 0.36              /* time to wait for grim */
