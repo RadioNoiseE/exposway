@@ -304,84 +304,113 @@ static const struct wl_buffer_listener wl_buffer_listener = {
     .release = wl_buffer_release,
 };
 
-int compare_scaled_width(const void *aw, const void *bw) {
-  struct wl_window *wa = *(struct wl_window **)aw;
-  struct wl_window *wb = *(struct wl_window **)bw;
-  float swa = wa->width * wa->scale_factor;
-  float swb = wb->width * wb->scale_factor;
-  return (swb < swa) - (swb > swa);
+int is_collision(int x1, int y1, int w1, int h1, int x2, int y2, int w2, int h2) {
+  return (x1 < x2 + w2 + DISPLAY_GAP && x1 + w1 + DISPLAY_GAP > x2 && y1 < y2 + h2 + DISPLAY_GAP && y1 + h1 + DISPLAY_GAP > y2);
+}
+
+void compute_optimal_scale_factors(struct client_state *state) {
+  int window_sum = state->window_sum;
+  int display_width = state->display_width;
+  int display_height = state->display_height;
+
+  float total_display_area = (float)(display_width * display_height);
+  float total_window_area = 0.0f;
+
+  for (int i = 0; i < window_sum; i++) {
+    total_window_area += (float)(state->window[i].width * state->window[i].height);
+  }
+
+  float global_scale_factor = sqrt(total_display_area / total_window_area) * SF_TOLERN;
+
+  for (int i = 0; i < window_sum; i++) {
+    float scaled_width = state->window[i].width * global_scale_factor;
+    float scaled_height = state->window[i].height * global_scale_factor;
+
+    if (scaled_width > display_width || scaled_height > display_height) {
+      float width_scale_factor = (float)display_width / state->window[i].width;
+      float height_scale_factor = (float)display_height / state->window[i].height;
+      global_scale_factor = fmin(width_scale_factor, height_scale_factor);
+    }
+
+    state->window[i].scale_factor = global_scale_factor;
+  }
+}
+
+int place_window(struct client_state *state, int index, float *current_angle,
+                 float separation, float center_x, float center_y) {
+  float scale_factor = state->window[index].scale_factor;
+  int scaled_width = state->window[index].width * scale_factor;
+  int scaled_height = state->window[index].height * scale_factor;
+  int half_width = scaled_width / 2;
+  int half_height = scaled_height / 2;
+
+  int attempts = 0;
+
+  while (attempts < MAX_ATTMPT) {
+    float x = center_x + separation * cos(*current_angle);
+    float y = center_y + separation * sin(*current_angle);
+
+    int xcr = round(x - half_width);
+    int ycr = round(y - half_height);
+
+    xcr = fmax(DISPLAY_GAP, fmin(state->display_width - scaled_width - DISPLAY_GAP, xcr));
+    ycr = fmax(DISPLAY_GAP, fmin(state->display_height - scaled_height - DISPLAY_GAP, ycr));
+
+    state->window[index].xcr = xcr;
+    state->window[index].ycr = ycr;
+
+    int collision = 0;
+    for (int j = 0; j < index; j++) {
+      int px = state->window[j].xcr;
+      int py = state->window[j].ycr;
+      int pw = state->window[j].width * state->window[j].scale_factor;
+      int ph = state->window[j].height * state->window[j].scale_factor;
+
+      if (is_collision(xcr, ycr, scaled_width, scaled_height, px, py, pw, ph)) {
+        collision = 1;
+        break;
+      }
+    }
+
+    if (!collision) {
+      return 1;
+    }
+
+    attempts++;
+    *current_angle += 0.1f;
+  }
+
+  return 0;
 }
 
 void expose_layout_alloc(struct client_state *state) {
-  if (state->window_sum == 0)
+  compute_optimal_scale_factors(state);
+
+  int display_width = state->display_width;
+  int display_height = state->display_height;
+  int window_sum = state->window_sum;
+
+  if (window_sum == 0)
     return;
 
-  int total_windows = state->window_sum;
-  int grid_rows = 0;
-  int grid_cols = 0;
+  float center_x = display_width / 2.0f;
+  float center_y = display_height / 2.0f;
+  float angle_step = 2 * M_PI / window_sum;
+  float current_angle = 0.0f;
 
-  for (grid_cols = 1; grid_cols * grid_cols < total_windows; grid_cols++)
-    ;
-  grid_rows = (total_windows + grid_cols - 1) / grid_cols;
+  float initial_separation_factor = INI_SEPF;
 
-  int missing_windows = grid_cols * grid_rows - total_windows;
+  for (int i = 0; i < window_sum; i++) {
+    float separation = initial_separation_factor * (state->window[i].width + state->window[i].height);
+    int success = place_window(state, i, &current_angle, separation, center_x, center_y);
 
-  int available_width = state->display_width - (2 * DISPLAY_GAP);
-  int available_height = state->display_height - (2 * DISPLAY_GAP);
-
-  float cell_width = (float)available_width / grid_cols;
-  float cell_height = (float)available_height / grid_rows;
-
-  struct wl_window **windows_ptrs =
-      malloc(total_windows * sizeof(struct wl_window *));
-
-  for (int i = 0; i < total_windows; ++i) {
-    windows_ptrs[i] = &state->window[i];
-    struct wl_window *win = &state->window[i];
-    float width_scale = cell_width / win->width * WIN_GRID_FACTOR;
-    float height_scale = cell_height / win->height * WIN_GRID_FACTOR;
-    win->scale_factor =
-        (width_scale < height_scale) ? width_scale : height_scale;
-    if (win->width == win->height)
-      win->scale_factor *= WIN_QUAD_FACTOR;
-  }
-
-  qsort(windows_ptrs, total_windows, sizeof(struct wl_window *),
-        compare_scaled_width);
-
-  int *windows_per_row = malloc(grid_rows * sizeof(int));
-  for (int i = 0; i < grid_rows; ++i)
-    windows_per_row[i] = grid_cols;
-  for (int i = 0; i < missing_windows; ++i)
-    windows_per_row[grid_rows - 1 - i]--;
-
-  int current_window = 0;
-  for (int row = 0; row < grid_rows; ++row) {
-    int cols_in_this_row = windows_per_row[row];
-
-    float row_gap = (cols_in_this_row - 1) * WIN_GRID_GAP;
-    float adjusted_cell_width = (available_width - row_gap) / cols_in_this_row;
-
-    int start_col = (grid_cols - cols_in_this_row) / 2;
-
-    for (int col = start_col; col < start_col + cols_in_this_row; ++col) {
-      if (current_window >= total_windows)
-        break;
-      struct wl_window *win = windows_ptrs[current_window];
-      current_window++;
-
-      float final_width = win->width * win->scale_factor;
-      float final_height = win->height * win->scale_factor;
-
-      win->xcr = DISPLAY_GAP + col * (adjusted_cell_width + WIN_GRID_GAP) +
-                 (adjusted_cell_width - final_width) / 2;
-      win->ycr =
-          DISPLAY_GAP + row * cell_height + (cell_height - final_height) / 2;
+    if (!success) {
+      state->window[i].scale_factor *= 0.9f;
+      i--;
     }
-  }
 
-  free(windows_per_row);
-  free(windows_ptrs);
+    current_angle += angle_step;
+  }
 }
 
 static void wl_window_plot(struct client_state *state, int n) {
