@@ -18,13 +18,13 @@
 #include <wayland-client.h>
 #include <xkbcommon/xkbcommon.h>
 
-#define ASSERT(condition, message)                                             \
-  do {                                                                         \
-    if (!(condition)) {                                                        \
-      fprintf(stderr, "Assertion failed: (%s), function %s, line %d.\n",       \
-              #condition, __FUNCTION__, __LINE__);                             \
-      fprintf(stderr, "Error message: %s.\n", message);                        \
-    }                                                                          \
+#define ASSERT(condition, message)					\
+  do {									\
+    if (!(condition)) {							\
+      fprintf(stderr, "Assertion failed: (%s), function %s, line %d.\n", \
+              #condition, __FUNCTION__, __LINE__);			\
+      fprintf(stderr, "Error message: %s.\n", message);			\
+    }									\
   } while (0)
 
 static void randname(char *buf) {
@@ -68,9 +68,17 @@ static int allocate_shm_file(size_t size) {
   return fd;
 }
 
+struct dupli {
+  int var1;
+  int var2;
+};
+
+typedef struct dupli tuple;
+
 struct wl_window {
   int node;
   int width, height;
+  int ctrw, ctrh;
   int xcr, ycr;
   float scale_factor;
   char *title;
@@ -109,8 +117,8 @@ struct client_state {
 static void find_nearest_window(struct client_state *state, char dir) {
   clock_t current_time = clock();
   double time_elapsed_ms =
-      ((double)(current_time - state->last_focus_change_time)) /
-      CLOCKS_PER_SEC * 1000;
+    ((double)(current_time - state->last_focus_change_time)) /
+    CLOCKS_PER_SEC * 1000;
 
   if (state->focus_changing)
     return;
@@ -125,17 +133,17 @@ static void find_nearest_window(struct client_state *state, char dir) {
   for (int n = 0; n < state->window_sum; n++) {
     if (n != state->focused_window) {
       int xsep =
-          state->window[n].xcr - state->window[state->focused_window].xcr;
+	state->window[n].xcr - state->window[state->focused_window].xcr;
       int ysep =
-          state->window[n].ycr - state->window[state->focused_window].ycr;
+	state->window[n].ycr - state->window[state->focused_window].ycr;
 
       switch (dir) {
       case 'u':
         if (ysep < 0 &&
             abs(xsep) < state->window[state->focused_window].width *
-                            state->window[state->focused_window].scale_factor &&
+	    state->window[state->focused_window].scale_factor &&
             abs(xsep) <
-                state->window[n].width * state->window[n].scale_factor) {
+	    state->window[n].width * state->window[n].scale_factor) {
           double distance = xsep * xsep + ysep * ysep;
           if (distance < nearest_distance) {
             nearest_distance = distance;
@@ -146,9 +154,9 @@ static void find_nearest_window(struct client_state *state, char dir) {
       case 'd':
         if (ysep > 0 &&
             abs(xsep) < state->window[state->focused_window].width *
-                            state->window[state->focused_window].scale_factor &&
+	    state->window[state->focused_window].scale_factor &&
             abs(xsep) <
-                state->window[n].width * state->window[n].scale_factor) {
+	    state->window[n].width * state->window[n].scale_factor) {
           double distance = xsep * xsep + ysep * ysep;
           if (distance < nearest_distance) {
             nearest_distance = distance;
@@ -158,7 +166,7 @@ static void find_nearest_window(struct client_state *state, char dir) {
         break;
       case 'l':
         if (xsep < 0 && abs(ysep) < state->window[n].height *
-                                        state->window[n].scale_factor) {
+	    state->window[n].scale_factor) {
           double distance = xsep * xsep + ysep * ysep;
           if (distance < nearest_distance) {
             nearest_distance = distance;
@@ -169,7 +177,7 @@ static void find_nearest_window(struct client_state *state, char dir) {
       case 'r':
         if (xsep > 0 &&
             abs(ysep) < state->window[state->focused_window].height *
-                            state->window[state->focused_window].scale_factor) {
+	    state->window[state->focused_window].scale_factor) {
           double distance = xsep * xsep + ysep * ysep;
           if (distance < nearest_distance) {
             nearest_distance = distance;
@@ -204,8 +212,8 @@ static void wl_keyboard_keymap(void *data, struct wl_keyboard *wl_keyboard,
   ASSERT(map_shm != MAP_FAILED, "failed to mmap keymap");
 
   struct xkb_keymap *keymap = xkb_keymap_new_from_string(
-      state->xkb_context, map_shm, XKB_KEYMAP_FORMAT_TEXT_V1,
-      XKB_KEYMAP_COMPILE_NO_FLAGS);
+							 state->xkb_context, map_shm, XKB_KEYMAP_FORMAT_TEXT_V1,
+							 XKB_KEYMAP_COMPILE_NO_FLAGS);
   ASSERT(keymap != NULL, "failed to create keymap");
   munmap(map_shm, size);
   close(fd);
@@ -289,11 +297,11 @@ static void wl_keyboard_enter(void *data, struct wl_keyboard *wl_keyboard,
                               struct wl_array *keys) {}
 
 static const struct wl_keyboard_listener wl_keyboard_listener = {
-    .keymap = wl_keyboard_keymap,
-    .enter = wl_keyboard_enter,
-    .key = wl_keyboard_key,
-    .modifiers = wl_keyboard_modifiers,
-    .repeat_info = wl_keyboard_repeat_info,
+  .keymap = wl_keyboard_keymap,
+  .enter = wl_keyboard_enter,
+  .key = wl_keyboard_key,
+  .modifiers = wl_keyboard_modifiers,
+  .repeat_info = wl_keyboard_repeat_info,
 };
 
 static void wl_buffer_release(void *data, struct wl_buffer *wl_buffer) {
@@ -301,116 +309,138 @@ static void wl_buffer_release(void *data, struct wl_buffer *wl_buffer) {
 }
 
 static const struct wl_buffer_listener wl_buffer_listener = {
-    .release = wl_buffer_release,
+  .release = wl_buffer_release,
 };
 
-int is_collision(int x1, int y1, int w1, int h1, int x2, int y2, int w2, int h2) {
-  return (x1 < x2 + w2 + DISPLAY_GAP && x1 + w1 + DISPLAY_GAP > x2 && y1 < y2 + h2 + DISPLAY_GAP && y1 + h1 + DISPLAY_GAP > y2);
+int compare_windows(const void *win1, const void *win2) {
+  struct wl_window *window1 = (struct wl_window *)win1;
+  struct wl_window *window2 = (struct wl_window *)win2;
+  if (window1->height != window2->height) return window2->height - window1->height;
+  if (window1->width != window2->width) return window2->width - window1->width;
+  return window2->node - window1->node;
 }
 
-void compute_optimal_scale_factors(struct client_state *state) {
-  int window_sum = state->window_sum;
-  int display_width = state->display_width;
-  int display_height = state->display_height;
-
-  float total_display_area = (float)(display_width * display_height);
-  float total_window_area = 0.0f;
-
-  for (int i = 0; i < window_sum; i++) {
-    total_window_area += (float)(state->window[i].width * state->window[i].height);
+int nfdh(int strip_width, struct wl_window *windows, int window_count) {
+  int current_level_height = 0, current_y = 0, current_x = 0;
+  
+  for (int i = 0; i < window_count; i++) {
+    windows[i].xcr = current_x;
+    windows[i].ycr = current_y;
+    if (current_x + windows[i].ctrw > strip_width) {
+      current_x = 0;
+      current_y += current_level_height;
+      current_level_height = 0;
+      windows[i].xcr = current_x;
+      windows[i].ycr = current_y;
+    }
+    current_x += windows[i].ctrw;
+    if (windows[i].ctrh > current_level_height)
+      current_level_height = windows[i].ctrh;
   }
 
-  float global_scale_factor = sqrt(total_display_area / total_window_area) * SF_TOLERN;
+  return current_y + current_level_height;
+}
 
-  for (int i = 0; i < window_sum; i++) {
-    float scaled_width = state->window[i].width * global_scale_factor;
-    float scaled_height = state->window[i].height * global_scale_factor;
-
-    if (scaled_width > display_width || scaled_height > display_height) {
-      float width_scale_factor = (float)display_width / state->window[i].width;
-      float height_scale_factor = (float)display_height / state->window[i].height;
-      global_scale_factor = fmin(width_scale_factor, height_scale_factor);
-    }
-
-    state->window[i].scale_factor = global_scale_factor;
+void adjust_sizes_of_windows(struct client_state *state) {
+  for (int i = 0; i < state->window_sum; i++) {
+    struct wl_window *window = &state->window[i];
+    window->ctrw = window->width > state->display_width ? state->display_width : window->width;
+    window->ctrh = window->height > state->display_height ? state->display_height : window->height;
+    window->ctrw += 2 * window->ctrw * MARGIN_RATIO;
+    window->ctrh += 2 * window->ctrh * MARGIN_RATIO;
   }
 }
 
-int place_window(struct client_state *state, int index, float *current_angle,
-                 float separation, float center_x, float center_y) {
-  float scale_factor = state->window[index].scale_factor;
-  int scaled_width = state->window[index].width * scale_factor;
-  int scaled_height = state->window[index].height * scale_factor;
-  int half_width = scaled_width / 2;
-  int half_height = scaled_height / 2;
+tuple find_good_packing(struct client_state *state) {
+  qsort(state->window, state->window_sum, sizeof(struct wl_window),
+        compare_windows);
 
-  int attempts = 0;
+  const float target_ratio = (float)state->display_height / (float)state->display_width;
 
-  while (attempts < MAX_ATTMPT) {
-    float x = center_x + separation * cos(*current_angle);
-    float y = center_y + separation * sin(*current_angle);
-
-    int xcr = round(x - half_width);
-    int ycr = round(y - half_height);
-
-    xcr = fmax(DISPLAY_GAP, fmin(state->display_width - scaled_width - DISPLAY_GAP, xcr));
-    ycr = fmax(DISPLAY_GAP, fmin(state->display_height - scaled_height - DISPLAY_GAP, ycr));
-
-    state->window[index].xcr = xcr;
-    state->window[index].ycr = ycr;
-
-    int collision = 0;
-    for (int j = 0; j < index; j++) {
-      int px = state->window[j].xcr;
-      int py = state->window[j].ycr;
-      int pw = state->window[j].width * state->window[j].scale_factor;
-      int ph = state->window[j].height * state->window[j].scale_factor;
-
-      if (is_collision(xcr, ycr, scaled_width, scaled_height, px, py, pw, ph)) {
-        collision = 1;
-        break;
-      }
-    }
-
-    if (!collision) {
-      return 1;
-    }
-
-    attempts++;
-    *current_angle += 0.1f;
+  int strip_width_min = 0, strip_width_max = 0;
+  for (int i = 0; i < state->window_sum; i++) {
+    strip_width_min = fmax(strip_width_min, state->window[i].width);
+    strip_width_max += state->window[i].width;
   }
 
-  return 0;
+  tuple res;
+  
+  int ctxt_high = nfdh(strip_width_min, state->window, state->window_sum);
+  float ratio_high = (float)ctxt_high / (float)strip_width_min;
+
+  if (ratio_high <= target_ratio) {
+    res.var1 = strip_width_min;
+    res.var2 = ctxt_high;
+    return res;
+  }
+
+  int ctxt_low = nfdh(strip_width_max, state->window, state->window_sum);
+  float ratio_low = (float)ctxt_low / (float)strip_width_max;
+
+  if (ratio_low >= target_ratio) {
+    res.var1 = strip_width_max;
+    res.var2 = ctxt_low;
+    return res;
+  }
+  
+  while ((float)strip_width_max / (float)strip_width_min > 1 + COVGT_TOL) {
+    int strip_width = sqrt(strip_width_min * strip_width_max);
+    int ctxt_bin = nfdh(strip_width, state->window, state->window_sum);
+    float ratio_bin = (float)ctxt_bin / (float)strip_width;
+    if (ratio_bin > target_ratio) {
+      ratio_high = ratio_bin;
+      ctxt_high = ctxt_bin;
+      strip_width_min = strip_width;
+    } else {
+      ratio_low = ratio_bin;
+      ctxt_low = ctxt_bin;
+      strip_width_max = strip_width;
+    }
+  }
+
+  if (ratio_high - target_ratio < target_ratio - ratio_low) {
+    res.var1 = strip_width_min;
+    res.var2 = ctxt_high;
+  } else {
+    res.var1 = strip_width_max;
+    res.var2 = ctxt_low;
+  }
+
+  return res;
 }
 
-void expose_layout_alloc(struct client_state *state) {
-  compute_optimal_scale_factors(state);
+void refine_packing(tuple pack, struct client_state *state) {
+  float width_ratio = (float)pack.var1 / (float)state->display_width;
+  float height_ratio = (float)pack.var2 / (float)state->display_height;
+  float scale_factor = width_ratio > height_ratio
+    ? state->display_width * PACK_RATIO / pack.var1
+    : state->display_height * PACK_RATIO / pack.var2;
 
-  int display_width = state->display_width;
-  int display_height = state->display_height;
-  int window_sum = state->window_sum;
-
-  if (window_sum == 0)
-    return;
-
-  float center_x = display_width / 2.0f;
-  float center_y = display_height / 2.0f;
-  float angle_step = 2 * M_PI / window_sum;
-  float current_angle = 0.0f;
-
-  float initial_separation_factor = INI_SEPF;
-
-  for (int i = 0; i < window_sum; i++) {
-    float separation = initial_separation_factor * (state->window[i].width + state->window[i].height);
-    int success = place_window(state, i, &current_angle, separation, center_x, center_y);
-
-    if (!success) {
-      state->window[i].scale_factor *= 0.9f;
-      i--;
-    }
-
-    current_angle += angle_step;
+  for (int i = 0; i < state->window_sum; i++) {
+    state->window[i].scale_factor = scale_factor;
+    state->window[i].xcr =
+      (state->display_width - pack.var1 * scale_factor) * 0.5 +
+      (state->window[i].xcr +
+       (state->window[i].ctrw - state->window[i].width) * 0.5) *
+      scale_factor;
+    state->window[i].ycr = state->display_height -
+      (state->display_height - pack.var2 * scale_factor) * 0.5 -
+      (state->window[i].ycr + state->window[i].ctrh +
+       (-state->window[i].ctrh + state->window[i].height) * 0.5) *
+       scale_factor;
+    fprintf(stderr,
+            "debug for window %d:\n  xcr: %d, ycr: %d, sf: %f\n  width: %d, "
+            "height: %d\n  ctnw: %d, ctnh: %d\n\n",
+            i, state->window[i].xcr, state->window[i].ycr,
+            state->window[i].scale_factor, state->window[i].width,
+            state->window[i].height, state->window[i].ctrw,
+            state->window[i].ctrh);
   }
+}
+
+static void expose_layout_alloc(struct client_state *state) {
+  adjust_sizes_of_windows(state);
+  refine_packing(find_good_packing(state), state);
 }
 
 static void wl_window_plot(struct client_state *state, int n) {
@@ -435,9 +465,9 @@ static void wl_window_plot(struct client_state *state, int n) {
     cairo_rectangle(state->cr, -FRAME_WDH / state->window[n].scale_factor,
                     -FRAME_WDH / state->window[n].scale_factor,
                     state->window[state->focused_window].width +
-                        FRAME_WDH * 2 / state->window[n].scale_factor,
+		    FRAME_WDH * 2 / state->window[n].scale_factor,
                     state->window[state->focused_window].height +
-                        FRAME_WDH * 2 / state->window[n].scale_factor);
+		    FRAME_WDH * 2 / state->window[n].scale_factor);
     cairo_stroke(state->cr);
   }
 
@@ -464,12 +494,12 @@ static void wl_title_render(struct client_state *state, int n) {
   cairo_set_source_rgb(state->cr, TITLE_CLR);
   cairo_move_to(state->cr,
                 state->window[n].xcr +
-                    (state->window[n].width * state->window[n].scale_factor -
-                     extends.width) /
-                        2,
+		(state->window[n].width * state->window[n].scale_factor -
+		 extends.width) /
+		2,
                 state->window[n].ycr +
-                    state->window[n].height * state->window[n].scale_factor +
-                    extends.height / 4);
+		state->window[n].height * state->window[n].scale_factor +
+		extends.height / 4);
   pango_cairo_show_layout(state->cr, layout);
 
   g_object_unref(layout);
@@ -495,13 +525,13 @@ static struct wl_buffer *draw_cairo(struct client_state *state) {
   ASSERT(pool != NULL, "failed to create wayland shared memory pool");
 
   struct wl_buffer *buffer = wl_shm_pool_create_buffer(
-      pool, 0, width, height, stride, WL_SHM_FORMAT_XRGB8888);
+						       pool, 0, width, height, stride, WL_SHM_FORMAT_XRGB8888);
   ASSERT(buffer != NULL, "failed to create wayland buffer");
   wl_shm_pool_destroy(pool);
   close(fd);
 
   state->surface = cairo_image_surface_create_for_data(
-      data, CAIRO_FORMAT_ARGB32, width, height, stride);
+						       data, CAIRO_FORMAT_ARGB32, width, height, stride);
   ASSERT(state->surface != NULL,
          "failed to create cairo image surface for wayland");
   state->cr = cairo_create(state->surface);
@@ -540,8 +570,8 @@ static void xdg_toplevel_close(void *data, struct xdg_toplevel *toplevel) {
 }
 
 static const struct xdg_toplevel_listener xdg_toplevel_listener = {
-    .configure = xdg_toplevel_configure,
-    .close = xdg_toplevel_close,
+  .configure = xdg_toplevel_configure,
+  .close = xdg_toplevel_close,
 };
 
 static void xdg_surface_configure(void *data, struct xdg_surface *xdg_surface,
@@ -559,7 +589,7 @@ static void xdg_surface_configure(void *data, struct xdg_surface *xdg_surface,
 }
 
 static const struct xdg_surface_listener xdg_surface_listener = {
-    .configure = xdg_surface_configure,
+  .configure = xdg_surface_configure,
 };
 
 static void xdg_wm_base_ping(void *data, struct xdg_wm_base *xdg_wm_base,
@@ -568,7 +598,7 @@ static void xdg_wm_base_ping(void *data, struct xdg_wm_base *xdg_wm_base,
 }
 
 static const struct xdg_wm_base_listener xdg_wm_base_listener = {
-    .ping = xdg_wm_base_ping,
+  .ping = xdg_wm_base_ping,
 };
 
 static const struct wl_callback_listener wl_surface_frame_listener;
@@ -591,7 +621,7 @@ static void wl_surface_frame_done(void *data, struct wl_callback *cb,
 }
 
 static const struct wl_callback_listener wl_surface_frame_listener = {
-    .done = wl_surface_frame_done,
+  .done = wl_surface_frame_done,
 };
 
 static void registry_global(void *data, struct wl_registry *wl_registry,
@@ -604,11 +634,11 @@ static void registry_global(void *data, struct wl_registry *wl_registry,
     ASSERT(state->wl_shm != NULL, "failed to bind wayland shared memory");
   } else if (strcmp(interface, wl_compositor_interface.name) == 0) {
     state->wl_compositor =
-        wl_registry_bind(wl_registry, name, &wl_compositor_interface, 4);
+      wl_registry_bind(wl_registry, name, &wl_compositor_interface, 4);
     ASSERT(state->wl_compositor != NULL, "failed to bind wayland compositor");
   } else if (strcmp(interface, xdg_wm_base_interface.name) == 0) {
     state->xdg_wm_base =
-        wl_registry_bind(wl_registry, name, &xdg_wm_base_interface, 1);
+      wl_registry_bind(wl_registry, name, &xdg_wm_base_interface, 1);
     ASSERT(state->xdg_wm_base != NULL,
            "failed to bind xdg windows manager base");
     xdg_wm_base_add_listener(state->xdg_wm_base, &xdg_wm_base_listener, state);
@@ -625,8 +655,8 @@ static void registry_global_remove(void *data, struct wl_registry *wl_registry,
                                    uint32_t name) {}
 
 static const struct wl_registry_listener wl_registry_listener = {
-    .global = registry_global,
-    .global_remove = registry_global_remove,
+  .global = registry_global,
+  .global_remove = registry_global_remove,
 };
 
 int main(int argc, char *argv[]) {
@@ -696,7 +726,7 @@ int main(int argc, char *argv[]) {
   ASSERT(state.wl_surface != NULL, "failed to create wayland surface");
 
   state.xdg_surface =
-      xdg_wm_base_get_xdg_surface(state.xdg_wm_base, state.wl_surface);
+    xdg_wm_base_get_xdg_surface(state.xdg_wm_base, state.wl_surface);
   ASSERT(state.xdg_surface != NULL, "failed to get xdg surface");
   xdg_surface_add_listener(state.xdg_surface, &xdg_surface_listener, &state);
 
