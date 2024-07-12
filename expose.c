@@ -167,7 +167,7 @@ static void find_nearest_window(struct client_state *state, char dir) {
       case 'l':
         if (xsep < 0 &&
             abs(ysep) < state->window[state->focused_window].height *
-                            state->window[n].scale_factor &&
+                            state->window[state->focused_window].scale_factor &&
             abs(ysep) <
                 state->window[n].height * state->window[n].scale_factor) {
           double distance = xsep * xsep + ysep * ysep;
@@ -181,8 +181,8 @@ static void find_nearest_window(struct client_state *state, char dir) {
         if (xsep > 0 &&
             abs(ysep) < state->window[state->focused_window].height *
                             state->window[state->focused_window].scale_factor &&
-            abs(ysep) < state->window[state->focused_window].height *
-                            state->window[state->focused_window].scale_factor) {
+            abs(ysep) <
+                state->window[n].height * state->window[n].scale_factor) {
           double distance = xsep * xsep + ysep * ysep;
           if (distance < nearest_distance) {
             nearest_distance = distance;
