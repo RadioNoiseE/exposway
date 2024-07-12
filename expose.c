@@ -68,9 +68,17 @@ static int allocate_shm_file(size_t size) {
   return fd;
 }
 
+struct dupli {
+  int var1;
+  int var2;
+};
+
+typedef struct dupli tuple;
+
 struct wl_window {
   int node;
   int width, height;
+  int ctrw, ctrh;
   int xcr, ycr;
   float scale_factor;
   char *title;
@@ -157,8 +165,11 @@ static void find_nearest_window(struct client_state *state, char dir) {
         }
         break;
       case 'l':
-        if (xsep < 0 && abs(ysep) < state->window[n].height *
-                                        state->window[n].scale_factor) {
+        if (xsep < 0 &&
+            abs(ysep) < state->window[state->focused_window].height *
+                            state->window[n].scale_factor &&
+            abs(ysep) <
+                state->window[n].height * state->window[n].scale_factor) {
           double distance = xsep * xsep + ysep * ysep;
           if (distance < nearest_distance) {
             nearest_distance = distance;
@@ -168,6 +179,8 @@ static void find_nearest_window(struct client_state *state, char dir) {
         break;
       case 'r':
         if (xsep > 0 &&
+            abs(ysep) < state->window[state->focused_window].height *
+                            state->window[state->focused_window].scale_factor &&
             abs(ysep) < state->window[state->focused_window].height *
                             state->window[state->focused_window].scale_factor) {
           double distance = xsep * xsep + ysep * ysep;
@@ -189,8 +202,8 @@ static void find_nearest_window(struct client_state *state, char dir) {
 
 static void focus_window(int node_id) {
   char focus_command[256];
-  snprintf(focus_command, sizeof(focus_command), "sleep %f; swaymsg [con_id=%d] focus",
-           DELAY_SEC, node_id);
+  snprintf(focus_command, sizeof(focus_command),
+           "sleep %f; swaymsg [con_id=%d] focus", DELAY_SEC, node_id);
   pid_t swayipc_pid = fork();
   ASSERT(swayipc_pid != 0, "failed to create new process");
   execl("/bin/sh", "sh", "-c", focus_command, (char *)NULL);
@@ -304,84 +317,165 @@ static const struct wl_buffer_listener wl_buffer_listener = {
     .release = wl_buffer_release,
 };
 
-int compare_scaled_width(const void *aw, const void *bw) {
-  struct wl_window *wa = *(struct wl_window **)aw;
-  struct wl_window *wb = *(struct wl_window **)bw;
-  float swa = wa->width * wa->scale_factor;
-  float swb = wb->width * wb->scale_factor;
-  return (swb < swa) - (swb > swa);
+int compare_windows(const void *win1, const void *win2) {
+  struct wl_window *window1 = (struct wl_window *)win1;
+  struct wl_window *window2 = (struct wl_window *)win2;
+  if (window1->height != window2->height)
+    return window2->height - window1->height;
+  if (window1->width != window2->width)
+    return window2->width - window1->width;
+  return window2->node - window1->node;
 }
 
-void expose_layout_alloc(struct client_state *state) {
-  if (state->window_sum == 0)
-    return;
+int nfdh(int strip_width, struct wl_window *windows, int window_count) {
+  int current_level_height = 0, current_y = 0, current_x = 0;
 
-  int total_windows = state->window_sum;
-  int grid_rows = 0;
-  int grid_cols = 0;
-
-  for (grid_cols = 1; grid_cols * grid_cols < total_windows; grid_cols++)
-    ;
-  grid_rows = (total_windows + grid_cols - 1) / grid_cols;
-
-  int missing_windows = grid_cols * grid_rows - total_windows;
-
-  int available_width = state->display_width - (2 * DISPLAY_GAP);
-  int available_height = state->display_height - (2 * DISPLAY_GAP);
-
-  float cell_width = (float)available_width / grid_cols;
-  float cell_height = (float)available_height / grid_rows;
-
-  struct wl_window **windows_ptrs =
-      malloc(total_windows * sizeof(struct wl_window *));
-
-  for (int i = 0; i < total_windows; ++i) {
-    windows_ptrs[i] = &state->window[i];
-    struct wl_window *win = &state->window[i];
-    float width_scale = cell_width / win->width * WIN_GRID_FACTOR;
-    float height_scale = cell_height / win->height * WIN_GRID_FACTOR;
-    win->scale_factor =
-        (width_scale < height_scale) ? width_scale : height_scale;
-    if (win->width == win->height)
-      win->scale_factor *= WIN_QUAD_FACTOR;
+  for (int i = 0; i < window_count; i++) {
+    windows[i].xcr = current_x;
+    windows[i].ycr = current_y;
+    if (current_x + windows[i].ctrw > strip_width) {
+      current_x = 0;
+      current_y += current_level_height;
+      current_level_height = 0;
+      windows[i].xcr = current_x;
+      windows[i].ycr = current_y;
+    }
+    current_x += windows[i].ctrw;
+    if (windows[i].ctrh > current_level_height)
+      current_level_height = windows[i].ctrh;
   }
 
-  qsort(windows_ptrs, total_windows, sizeof(struct wl_window *),
-        compare_scaled_width);
+  return current_y + current_level_height;
+}
 
-  int *windows_per_row = malloc(grid_rows * sizeof(int));
-  for (int i = 0; i < grid_rows; ++i)
-    windows_per_row[i] = grid_cols;
-  for (int i = 0; i < missing_windows; ++i)
-    windows_per_row[grid_rows - 1 - i]--;
+void adjust_sizes_of_windows(struct client_state *state) {
+  for (int i = 0; i < state->window_sum; i++) {
+    state->window[i].ctrw = state->window[i].width > state->display_width
+                                ? state->display_width
+                                : state->window[i].width;
+    state->window[i].ctrh = state->window[i].height > state->display_height
+                                ? state->display_height
+                                : state->window[i].height;
+    state->window[i].ctrw += 2 * state->window[i].ctrw * MARGIN_RATIO;
+    state->window[i].ctrh += 2 * state->window[i].ctrh * MARGIN_RATIO;
+    state->window[i].scale_factor = 1;
+  }
+}
 
-  int current_window = 0;
-  for (int row = 0; row < grid_rows; ++row) {
-    int cols_in_this_row = windows_per_row[row];
+tuple find_good_packing(struct client_state *state) {
+  qsort(state->window, state->window_sum, sizeof(struct wl_window),
+        compare_windows);
 
-    float row_gap = (cols_in_this_row - 1) * WIN_GRID_GAP;
-    float adjusted_cell_width = (available_width - row_gap) / cols_in_this_row;
+  const float target_ratio =
+      (float)state->display_height / (float)state->display_width;
 
-    int start_col = (grid_cols - cols_in_this_row) / 2;
+  int strip_width_min = 0, strip_width_max = 0;
+  for (int i = 0; i < state->window_sum; i++) {
+    strip_width_min = fmax(strip_width_min, state->window[i].width);
+    strip_width_max += state->window[i].width;
+  }
 
-    for (int col = start_col; col < start_col + cols_in_this_row; ++col) {
-      if (current_window >= total_windows)
-        break;
-      struct wl_window *win = windows_ptrs[current_window];
-      current_window++;
+  tuple res;
 
-      float final_width = win->width * win->scale_factor;
-      float final_height = win->height * win->scale_factor;
+  int plmt_high = nfdh(strip_width_min, state->window, state->window_sum);
+  float ratio_high = (float)plmt_high / (float)strip_width_min;
 
-      win->xcr = DISPLAY_GAP + col * (adjusted_cell_width + WIN_GRID_GAP) +
-                 (adjusted_cell_width - final_width) / 2;
-      win->ycr =
-          DISPLAY_GAP + row * cell_height + (cell_height - final_height) / 2;
+  if (ratio_high <= target_ratio) {
+    res.var1 = strip_width_min;
+    res.var2 = plmt_high;
+    return res;
+  }
+
+  int plmt_low = nfdh(strip_width_max, state->window, state->window_sum);
+  float ratio_low = (float)plmt_low / (float)strip_width_max;
+
+  if (ratio_low >= target_ratio) {
+    res.var1 = strip_width_max;
+    res.var2 = plmt_low;
+    return res;
+  }
+
+  while ((float)strip_width_max / (float)strip_width_min > 1 + COVGT_TOL) {
+    int strip_width = sqrt(strip_width_min * strip_width_max);
+    int plmt_bin = nfdh(strip_width, state->window, state->window_sum);
+    float ratio_bin = (float)plmt_bin / (float)strip_width;
+    if (ratio_bin > target_ratio) {
+      ratio_high = ratio_bin;
+      plmt_high = plmt_bin;
+      strip_width_min = strip_width;
+    } else {
+      ratio_low = ratio_bin;
+      plmt_low = plmt_bin;
+      strip_width_max = strip_width;
     }
   }
 
-  free(windows_per_row);
-  free(windows_ptrs);
+  if (ratio_high - target_ratio < target_ratio - ratio_low) {
+    res.var1 = strip_width_min;
+    res.var2 = plmt_high;
+  } else {
+    res.var1 = strip_width_max;
+    res.var2 = plmt_low;
+  }
+
+  res.var2 = nfdh(res.var1, state->window, state->window_sum);
+
+  return res;
+}
+
+void refine_packing(tuple pack, struct client_state *state) {
+  float width_ratio = (float)pack.var1 / (float)state->display_width;
+  float height_ratio = (float)pack.var2 / (float)state->display_height;
+  float scale_factor = width_ratio > height_ratio
+                           ? state->display_width * PACK_RATIO / pack.var1
+                           : state->display_height * PACK_RATIO / pack.var2;
+
+  for (int i = 0, level = 0, boundary = 0, track = 0, height = 0;
+       i < state->window_sum; i++) {
+    if (state->window[i].ycr == level) {
+      if (state->window[i].xcr + state->window[i].ctrw > boundary)
+        boundary = state->window[i].xcr + state->window[i].ctrw;
+      if (state->window[i].ctrh > height)
+        height = state->window[i].ctrh;
+    } else {
+      for (int j = track; j < i; j++) {
+        state->window[j].xcr += (pack.var1 - boundary) * 0.5;
+        state->window[j].ycr += (height - state->window[j].ctrh) * 0.5;
+      }
+      level = state->window[i].ycr;
+      boundary = state->window[i].xcr + state->window[i].ctrw;
+      height = state->window[i].ctrh;
+      track = i;
+    }
+    if (i == state->window_sum - 1) {
+      for (int j = track; j <= i; j++) {
+        state->window[j].xcr += (pack.var1 - boundary) * 0.5;
+        state->window[j].ycr += (height - state->window[j].ctrh) * 0.5;
+      }
+    }
+  }
+
+  for (int i = 0; i < state->window_sum; i++) {
+    state->window[i].scale_factor *= scale_factor;
+    state->window[i].xcr =
+        (state->display_width - pack.var1 * state->window[i].scale_factor) *
+            0.5 +
+        (state->window[i].xcr +
+         (state->window[i].ctrw - state->window[i].width) * 0.5) *
+            state->window[i].scale_factor;
+    state->window[i].ycr =
+        state->display_height -
+        (state->display_height - pack.var2 * state->window[i].scale_factor) *
+            0.5 -
+        (state->window[i].ycr + state->window[i].ctrh -
+         (state->window[i].ctrh - state->window[i].height) * 0.5) *
+            state->window[i].scale_factor;
+  }
+}
+
+static void expose_layout_alloc(struct client_state *state) {
+  adjust_sizes_of_windows(state);
+  refine_packing(find_good_packing(state), state);
 }
 
 static void wl_window_plot(struct client_state *state, int n) {
