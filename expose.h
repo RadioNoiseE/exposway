@@ -5,7 +5,6 @@
 #define TITLE_CLR							\
 	1, 1, 1                     /* color for the title font rendered under the window */
 #define TITLE_SIZE 12               /* size for the font used to render the title */
-#define DEBOUNCE_DELAY_MS 360       /* key repeat */
 #define DELAY_SEC 0.36              /* time to wait for grim */
 #define MARGIN_RATIO 0.07f          /* margin to append for each window */
 #define COVGT_TOL 0.2f              /* tolerence for the binary search */

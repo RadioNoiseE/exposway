@@ -98,6 +98,7 @@ struct client_state {
   struct wl_seat *wl_seat;
   struct xkb_context *xkb_context;
   struct xkb_state *xkb_state;
+  int32_t xkb_delay;
 
   int display_width, display_height;
   int window_sum;
@@ -122,7 +123,7 @@ static void find_nearest_window(struct client_state *state, char dir) {
 
   if (state->focus_changing)
     return;
-  else if (time_elapsed_ms < DEBOUNCE_DELAY_MS)
+  else if (time_elapsed_ms < state->xkb_delay)
     return;
 
   state->focus_changing = true;
@@ -295,7 +296,10 @@ static void wl_keyboard_modifiers(void *data, struct wl_keyboard *wl_keyboard,
 }
 
 static void wl_keyboard_repeat_info(void *data, struct wl_keyboard *wl_keyboard,
-                                    int32_t rate, int32_t delay) {}
+                                    int32_t rate, int32_t delay) {
+  struct client_state *state = data;
+  state->xkb_delay = delay;
+}
 
 static void wl_keyboard_enter(void *data, struct wl_keyboard *wl_keyboard,
                               uint32_t serial, struct wl_surface *surface,
@@ -550,7 +554,8 @@ static struct wl_buffer *draw_cairo(struct client_state *state) {
   if (fd == -1)
     return NULL;
 
-  uint32_t *data = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+  unsigned char *data =
+      mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
   if (data == MAP_FAILED) {
     close(fd);
     return NULL;

@@ -1,10 +1,11 @@
 CC:=clang
 SU:=doas
 PREFIX:=/usr/local
+CFLAGS+=-O3 -Wno-unused-result
 
-WAYLAND_PROTOCOLS=$(shell pkg-config --variable=pkgdatadir wayland-protocols)
-WAYLAND_SCANNER=$(shell pkg-config --variable=wayland_scanner wayland-scanner)
-LIBS=\
+WAYLAND_PROTOCOLS:=$(shell pkg-config --variable=pkgdatadir wayland-protocols)
+WAYLAND_SCANNER:=$(shell pkg-config --variable=wayland_scanner wayland-scanner)
+LIBS:=\
 	$(shell pkg-config --cflags --libs wayland-client) \
 	$(shell pkg-config --cflags --libs pangocairo) \
 	-lxkbcommon \
@@ -25,10 +26,8 @@ exposway: expose.c expose.h xdg-shell-client-protocol.h xdg-shell-protocol.c
 		$(LIBS)
 
 install: exposway collect.sh
-	$(SU) cp collect.sh $(PREFIX)/bin/exposway-daemon
-	$(SU) chmod +x $(PREFIX)/bin/exposway-daemon
-	$(SU) cp exposway $(PREFIX)/bin/exposway
-	$(SU) strip $(PREFIX)/bin/exposway
+	$(SU) install -m 755 collect.sh $(PREFIX)/bin/exposway-daemon
+	$(SU) install -s -m 755 exposway $(PREFIX)/bin/exposway
 
 compdb: exposway
 	clang -MJ expose.o.json -Wall -o expose.o -c expose.c \
