@@ -30,7 +30,7 @@ install: exposway collect.sh
 	$(SU) install -s -m 755 exposway $(PREFIX)/bin/exposway
 
 compdb: exposway
-	clang -MJ expose.o.json -Wall -o expose.o -c expose.c \
+	clang -MJ expose.o.json -Wall -Wno-unused-command-line-argument -o expose.o -c expose.c \
 		$(LIBS)
 	sed -e '1s/^/[\n/' -e '$$s/,$$/\n]/' *.o.json > compile_commands.json
 	rm expose.o expose.o.json
