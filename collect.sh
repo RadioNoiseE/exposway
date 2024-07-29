@@ -46,7 +46,7 @@ swaymsg -mt subscribe '["window"]' |\
         focused=$(jq -r '.container.focused' <<< "$win")
         refresh=("focus" "fullscreen_mode" "move" "floating" "title") # when urgent or marked we take no measure, when newed the geometry hasn't yet been initialized
         delete=("close") # circumstance when snapshot needs to be destroyed
-        if [[ "$reference" =~ "Expose Sway" ]]; then
+        if [[ "$reference" =~ "Sway Expose" ]]; then
             log "# expose!"
         elif [[ "${refresh[*]}" =~ "$stat" && "$focused" = "true" ]]; then
             log "* node $node info"
