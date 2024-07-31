@@ -36,11 +36,13 @@ install: exposway exposwayd
 	$(SU) install -s -m 755 exposwayd $(PREFIX)/bin/exposwayd
 	$(SU) install -s -m 755 exposway $(PREFIX)/bin/exposway
 
-compdb: exposway
+compdb: expose.c expose.h xdg-shell-client-protocol.h xdg-shell-protocol.c exposed.c
 	clang -MJ expose.o.json -Wall -Wno-unused-command-line-argument -o expose.o -c expose.c \
-		$(LIBS)
+		$(PLIBS)
+	clang -MJ exposed.o.json -Wall -Wno-unused-command-line-argument -o exposed.o -c exposed.c \
+		$(DLIBS)
 	sed -e '1s/^/[\n/' -e '$$s/,$$/\n]/' *.o.json > compile_commands.json
-	rm expose.o expose.o.json
+	rm expose.o expose.o.json exposed.o exposed.o.json xdg-shell-client-protocol.h xdg-shell-protocol.c
 
 clean:
 	rm -f exposway exposwayd xdg-shell-client-protocol.h xdg-shell-protocol.c compile_commands.json
