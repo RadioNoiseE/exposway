@@ -45,6 +45,7 @@ struct ipc_response {
 
 #define IPC_HEADER_SIZE (sizeof(ipc_magic) + 8)
 #define EXP_LOG_FN "expose.log"
+#define JSON_MAX_DEPTH 124
 #define event_mask(ev) (1 << (ev & 0x7F))
 #define log(...)                                                               \
   if (log) {                                                                   \
@@ -64,9 +65,8 @@ struct ipc_response {
 
 char *get_socketpath(void) {
   const char *swaysock = getenv("SWAYSOCK");
-  if (swaysock) {
+  if (swaysock)
     return strdup(swaysock);
-  }
   char *line = NULL;
   size_t line_size = 0;
   FILE *fp = popen("sway --get-socketpath 2>/dev/null", "r");
@@ -74,9 +74,8 @@ char *get_socketpath(void) {
     ssize_t nret = getline(&line, &line_size, fp);
     pclose(fp);
     if (nret > 0) {
-      if (line[nret - 1] == '\n') {
+      if (line[nret - 1] == '\n')
         line[nret - 1] = '\0';
-      }
       return line;
     }
   }
@@ -86,24 +85,20 @@ char *get_socketpath(void) {
 int ipc_open_socket(const char *socket_path) {
   struct sockaddr_un addr;
   int socketfd;
-  if ((socketfd = socket(AF_UNIX, SOCK_STREAM, 0)) == -1) {
+  if ((socketfd = socket(AF_UNIX, SOCK_STREAM, 0)) == -1)
     abort("Unable to open Unix socket");
-  }
   addr.sun_family = AF_UNIX;
   strncpy(addr.sun_path, socket_path, sizeof(addr.sun_path) - 1);
   addr.sun_path[sizeof(addr.sun_path) - 1] = 0;
   int l = sizeof(struct sockaddr_un);
-  if (connect(socketfd, (struct sockaddr *)&addr, l) == -1) {
+  if (connect(socketfd, (struct sockaddr *)&addr, l) == -1)
     abort("Unable to connect to %s", socket_path);
-  }
   return socketfd;
 }
 
 bool ipc_set_recv_timeout(int socketfd, struct timeval tv) {
-  if (setsockopt(socketfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) == -1) {
-    abort("Failed to set ipc recv timeout");
+  if (setsockopt(socketfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) == -1)
     return false;
-  }
   return true;
 }
 
@@ -113,16 +108,14 @@ struct ipc_response *ipc_recv_response(int socketfd) {
   size_t total = 0;
   while (total < IPC_HEADER_SIZE) {
     ssize_t received = recv(socketfd, data + total, IPC_HEADER_SIZE - total, 0);
-    if (received <= 0) {
+    if (received <= 0)
       abort("Unable to receive IPC response");
-    }
     total += received;
   }
 
   struct ipc_response *response = malloc(sizeof(struct ipc_response));
-  if (!response) {
+  if (!response)
     goto error_1;
-  }
 
   memcpy(&response->size, data + sizeof(ipc_magic), sizeof(uint32_t));
   memcpy(&response->type, data + sizeof(ipc_magic) + sizeof(uint32_t),
@@ -137,9 +130,8 @@ struct ipc_response *ipc_recv_response(int socketfd) {
   while (total < response->size) {
     ssize_t received =
         recv(socketfd, payload + total, response->size - total, 0);
-    if (received < 0) {
+    if (received < 0)
       abort("Unable to receive IPC response");
-    }
     total += received;
   }
   payload[response->size] = '\0';
@@ -165,13 +157,11 @@ char *ipc_single_command(int socketfd, uint32_t type, const char *payload,
   memcpy(data + sizeof(ipc_magic), len, sizeof(*len));
   memcpy(data + sizeof(ipc_magic) + sizeof(*len), &type, sizeof(type));
 
-  if (write(socketfd, data, IPC_HEADER_SIZE) == -1) {
+  if (write(socketfd, data, IPC_HEADER_SIZE) == -1)
     abort("Unable to send IPC header");
-  }
 
-  if (write(socketfd, payload, *len) == -1) {
+  if (write(socketfd, payload, *len) == -1)
     abort("Unable to send IPC payload");
-  }
 
   struct ipc_response *resp = ipc_recv_response(socketfd);
   char *response = resp->payload;
@@ -221,7 +211,6 @@ int main(int argc, char **argv) {
   uint32_t type = IPC_COMMAND;
   char *command = NULL;
 
-  int ret = 0;
   int socketfd = ipc_open_socket(socket_path);
   struct timeval timeout = {.tv_sec = 3, .tv_usec = 0};
   ipc_set_recv_timeout(socketfd, timeout);
@@ -230,7 +219,10 @@ int main(int argc, char **argv) {
   command = strdup("");
   uint32_t len = strlen(command);
   char *resp = ipc_single_command(socketfd, type, command, &len);
-  printf(resp);
+
+  json_tokener *tok = json_tokener_new_ex(JSON_MAX_DEPTH);
+  if (tok == NULL)
+    abort("failed allocating json_tokener");
 
   free(command);
   free(resp);
