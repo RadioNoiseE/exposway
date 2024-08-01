@@ -1,3 +1,7 @@
+#include "json_object.h"
+#include "json_object_iterator.h"
+#include "json_tokener.h"
+#include "json_types.h"
 #include <json.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -45,6 +49,7 @@ struct ipc_response {
 
 #define IPC_HEADER_SIZE (sizeof(ipc_magic) + 8)
 #define EXP_LOG_FN "expose.log"
+#define EXP_MON_FN "output"
 #define JSON_MAX_DEPTH 124
 #define event_mask(ev) (1 << (ev & 0x7F))
 #define log(...)                                                               \
@@ -198,7 +203,7 @@ int main(int argc, char **argv) {
   if (log) {
     log_fn = malloc((strlen(getenv("EXPOSWAYDIR")) + strlen(EXP_LOG_FN) + 1) *
                     sizeof(char));
-    strcat(strcat(log_fn, getenv("EXPOSWAYDIR")), EXP_LOG_FN);
+    strcat(strcpy(log_fn, getenv("EXPOSWAYDIR")), EXP_LOG_FN);
     log_fp = fopen(log_fn, "w");
     free(log_fn);
   }
@@ -223,7 +228,37 @@ int main(int argc, char **argv) {
   json_tokener *tok = json_tokener_new_ex(JSON_MAX_DEPTH);
   if (tok == NULL)
     abort("failed allocating json_tokener");
+  json_object *obj = json_tokener_parse_ex(tok, resp, -1);
+  enum json_tokener_error err = json_tokener_get_error(tok);
+  json_tokener_free(tok);
+  if (obj == NULL || err != json_tokener_success)
+    abort("Failed to parse payload as json: %s", json_tokener_error_desc(err));
 
+  int array_len = json_object_array_length(obj);
+  for (int i = 0; i < array_len; i++) {
+    json_object *element = json_object_array_get_idx(obj, i);
+    json_object *focused;
+
+    if (json_object_object_get_ex(element, "focused", &focused) &&
+        json_object_get_boolean(focused)) {
+      json_object *display, *geometry_width, *geometry_height;
+      json_object_object_get_ex(element, "rect", &display);
+      json_object_object_get_ex(display, "width", &geometry_width);
+      json_object_object_get_ex(display, "height", &geometry_height);
+
+      char *mon_fn =
+          malloc((strlen(getenv("EXPOSWAYDIR")) + strlen(EXP_MON_FN) + 1) *
+                 sizeof(char));
+      strcat(strcpy(mon_fn, getenv("EXPOSWAYDIR")), EXP_MON_FN);
+      FILE *mon_fp = fopen(mon_fn, "w");
+      fprintf(mon_fp, "%d %d", json_object_get_int(geometry_width),
+              json_object_get_int(geometry_height));
+      fclose(mon_fp);
+      free(mon_fn);
+    }
+  }
+
+  json_object_put(obj);
   free(command);
   free(resp);
 
