@@ -1,8 +1,5 @@
-#include "json_object.h"
-#include "json_object_iterator.h"
-#include "json_tokener.h"
-#include "json_types.h"
 #include <json.h>
+#include <signal.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -12,6 +9,8 @@
 #include <sys/un.h>
 #include <time.h>
 #include <unistd.h>
+
+volatile sig_atomic_t stop = 0;
 
 static const char ipc_magic[] = {'i', '3', '-', 'i', 'p', 'c'};
 enum ipc_command_type {
@@ -46,10 +45,12 @@ struct ipc_response {
   uint32_t type;
   char *payload;
 };
+bool termina;
 
 #define IPC_HEADER_SIZE (sizeof(ipc_magic) + 8)
 #define EXP_LOG_FN "expose.log"
 #define EXP_MON_FN "output"
+#define EXP_SUB_PL "[\"window\"]"
 #define JSON_MAX_DEPTH 124
 #define event_mask(ev) (1 << (ev & 0x7F))
 #define log(...)                                                               \
@@ -60,6 +61,7 @@ struct ipc_response {
     fprintf(log_fp, "[%s] ", buf);                                             \
     fprintf(log_fp, __VA_ARGS__);                                              \
     fprintf(log_fp, "\n");                                                     \
+    fflush(log_fp);                                                            \
   }
 #define abort(...)                                                             \
   do {                                                                         \
@@ -176,7 +178,12 @@ char *ipc_single_command(int socketfd, uint32_t type, const char *payload,
   return response;
 }
 
+void garbage_collect(int sig) { termina = 0; }
+
 int main(int argc, char **argv) {
+  signal(SIGTERM, garbage_collect);
+
+  termina = 1;
   bool log = false;
 
   if (getenv("EXPOSWAYDIR") == NULL)
@@ -208,26 +215,34 @@ int main(int argc, char **argv) {
     free(log_fn);
   }
 
-  char *socket_path;
-  socket_path = get_socketpath();
+  log("Exposway daemon initialized successfully.");
+
+  char *socket_path = get_socketpath();
   if (!socket_path)
     abort("Unable to retrieve socket path");
+
+  log("Unix socket for swayWM IPC protocol retrieved.");
 
   uint32_t type = IPC_COMMAND;
   char *command = NULL;
 
-  int socketfd = ipc_open_socket(socket_path);
+  int socket_fd = ipc_open_socket(socket_path);
+
+  log("Connection established.");
+
   struct timeval timeout = {.tv_sec = 3, .tv_usec = 0};
-  ipc_set_recv_timeout(socketfd, timeout);
+  ipc_set_recv_timeout(socket_fd, timeout);
 
   type = IPC_GET_OUTPUTS;
   command = strdup("");
   uint32_t len = strlen(command);
-  char *resp = ipc_single_command(socketfd, type, command, &len);
+  char *resp = ipc_single_command(socket_fd, type, command, &len);
+
+  log("Output specification request sent.");
 
   json_tokener *tok = json_tokener_new_ex(JSON_MAX_DEPTH);
   if (tok == NULL)
-    abort("failed allocating json_tokener");
+    abort("Failed allocating json_tokener");
   json_object *obj = json_tokener_parse_ex(tok, resp, -1);
   enum json_tokener_error err = json_tokener_get_error(tok);
   json_tokener_free(tok);
@@ -258,16 +273,118 @@ int main(int argc, char **argv) {
     }
   }
 
+  log("Currently focused monitor's geometry parsed and written.");
+
   json_object_put(obj);
   free(command);
   free(resp);
 
-  log("Exposway daemon initialized successfully.");
+  len = strlen(EXP_SUB_PL);
+  ipc_single_command(socket_fd, IPC_SUBSCRIBE, EXP_SUB_PL, &len);
+
+  timeout.tv_sec = 0;
+  timeout.tv_usec = 0;
+  ipc_set_recv_timeout(socket_fd, timeout);
+
+  do {
+    struct ipc_response *reply = ipc_recv_response(socket_fd);
+    if (!reply)
+      break;
+
+    json_tokener *tok = json_tokener_new_ex(JSON_MAX_DEPTH);
+    if (tok == NULL)
+      abort("Failed allocating json_tokener");
+
+    json_object *obj = json_tokener_parse_ex(tok, reply->payload, -1);
+    enum json_tokener_error err = json_tokener_get_error(tok);
+    json_tokener_free(tok);
+    if (obj == NULL || err != json_tokener_success)
+      abort("Failed to parse payload as json: %s",
+            json_tokener_error_desc(err));
+
+    json_object *cont;
+    json_object_object_get_ex(obj, "container", &cont);
+
+    json_object *stat, *ref;
+    json_object_object_get_ex(obj, "change", &stat);
+    json_object_object_get_ex(cont, "name", &ref);
+
+    const char *title = json_object_get_string(ref);
+    if (strcmp("Sway Expose", title) != 0) {
+      json_object *focused;
+      if (json_object_object_get_ex(cont, "focused", &focused) &&
+          json_object_get_boolean(focused)) {
+        const char *state = json_object_get_string(stat);
+        if (strcmp("focus", state) == 0 || strcmp("title", state) == 0 ||
+            strcmp("move", state) == 0 ||
+            strcmp("fullscreen_mode", state) == 0 ||
+            strcmp("floating", state) == 0) {
+          json_object *node, *rect;
+          json_object *xcr, *ycr, *width, *height;
+
+          json_object_object_get_ex(cont, "id", &node);
+          int uid = json_object_get_int(node);
+          char uuid[17];
+          snprintf(uuid, 16, "%d", uid);
+
+          json_object_object_get_ex(cont, "rect", &rect);
+          json_object_object_get_ex(rect, "x", &xcr);
+          json_object_object_get_ex(rect, "y", &ycr);
+          json_object_object_get_ex(rect, "width", &width);
+          json_object_object_get_ex(rect, "height", &height);
+          int x = json_object_get_int(xcr);
+          int y = json_object_get_int(ycr);
+          int wd = json_object_get_int(width);
+          int ht = json_object_get_int(height);
+
+          log("Window %d (%s) with changed mode (%s) detected, with coordinate "
+              "(%d,%d) and geometry %dx%d",
+              uid, title, state, x, y, wd, ht);
+
+          char *win_fn =
+              malloc(strlen(getenv("EXPOSWAYDIR")) + strlen(uuid) + 1);
+          strcat(strcpy(win_fn, getenv("EXPOSWAYDIR")), uuid);
+          FILE *win_fp = fopen(win_fn, "w");
+          free(win_fn);
+          fprintf(win_fp, "%d,%d %dx%d %s", x, y, wd, ht, title);
+          fclose(win_fp);
+
+          char grim[72];
+          snprintf(grim, 72, "grim -g \"%d,%d %dx%d\" %s%d.png", x, y, wd, ht,
+                   getenv("EXPOSWAYDIR"), uid);
+          system(grim);
+        } else if (strcmp("close", state)) {
+          json_object *node;
+
+          json_object_object_get_ex(cont, "id", &node);
+          int uid = json_object_get_int(node);
+          char uuid[17];
+          snprintf(uuid, 16, "%d", uid);
+
+          log("Window %d closed, deleting cache.", uid);
+
+          char *win_fn =
+              malloc(strlen(getenv("EXPOSWAYDIR")) + strlen(uuid) + 5);
+          strcat(strcpy(win_fn, getenv("EXPOSWAYDIR")), uuid);
+          unlink(win_fn);
+          strcat(win_fn, ".png");
+          unlink(win_fn);
+          free(win_fn);
+        }
+      }
+    }
+
+    json_object_put(obj);
+
+    free_ipc_response(reply);
+  } while (termina);
+
+  log("Terminate signal caught, cleaning up.");
 
   if (log)
     fclose(log_fp);
 
-  close(socketfd);
+  close(socket_fd);
   free(socket_path);
 
   return 0;
