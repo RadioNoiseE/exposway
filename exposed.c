@@ -10,9 +10,37 @@
 #include <time.h>
 #include <unistd.h>
 
+#define IPC_HEADER_SIZE (sizeof(ipc_magic) + 8)
+#define EXP_LOG_FN "expose.log"
+#define EXP_MON_FN "output"
+#define EXP_SUB_PL "[\"window\"]"
+#define JSON_MAX_DEPTH 124
+#define INTS_MAX_BNDRY 11
+#define SYSM_MAX_LNGTH 72
+#define event_mask(ev) (1 << (ev & 0x7F))
+#define log(...)                                                               \
+  if (log) {                                                                   \
+    struct tm tm = *localtime(&(time_t){time(NULL)});                          \
+    char buf[9];                                                               \
+    strftime(buf, sizeof(buf), "%T", &tm);                                     \
+    fprintf(log_fp, "[%s] ", buf);                                             \
+    fprintf(log_fp, __VA_ARGS__);                                              \
+    fprintf(log_fp, "\n");                                                     \
+    fflush(log_fp);                                                            \
+  }
+#define abort(...)                                                             \
+  do {                                                                         \
+    fprintf(stderr, __VA_ARGS__);                                              \
+    fprintf(stderr, "\n");                                                     \
+    exit(EXIT_FAILURE);                                                        \
+  } while (0)
+
+bool termina;
+
 volatile sig_atomic_t stop = 0;
 
 static const char ipc_magic[] = {'i', '3', '-', 'i', 'p', 'c'};
+
 enum ipc_command_type {
   IPC_COMMAND = 0,
   IPC_GET_WORKSPACES = 1,
@@ -40,35 +68,12 @@ enum ipc_command_type {
   IPC_EVENT_BAR_STATE_UPDATE = ((1 << 31) | 20),
   IPC_EVENT_INPUT = ((1 << 31) | 21),
 };
+
 struct ipc_response {
   uint32_t size;
   uint32_t type;
   char *payload;
 };
-bool termina;
-
-#define IPC_HEADER_SIZE (sizeof(ipc_magic) + 8)
-#define EXP_LOG_FN "expose.log"
-#define EXP_MON_FN "output"
-#define EXP_SUB_PL "[\"window\"]"
-#define JSON_MAX_DEPTH 124
-#define event_mask(ev) (1 << (ev & 0x7F))
-#define log(...)                                                               \
-  if (log) {                                                                   \
-    struct tm tm = *localtime(&(time_t){time(NULL)});                          \
-    char buf[9];                                                               \
-    strftime(buf, sizeof(buf), "%T", &tm);                                     \
-    fprintf(log_fp, "[%s] ", buf);                                             \
-    fprintf(log_fp, __VA_ARGS__);                                              \
-    fprintf(log_fp, "\n");                                                     \
-    fflush(log_fp);                                                            \
-  }
-#define abort(...)                                                             \
-  do {                                                                         \
-    fprintf(stderr, __VA_ARGS__);                                              \
-    fprintf(stderr, "\n");                                                     \
-    exit(EXIT_FAILURE);                                                        \
-  } while (0)
 
 char *get_socketpath(void) {
   const char *swaysock = getenv("SWAYSOCK");
@@ -191,7 +196,7 @@ int main(int argc, char **argv) {
 
   if (argc >= 3)
     abort("Too many arguments");
-  if (argc == 2 && strcmp(*++argv, "-l") == 0)
+  if (argc == 2 && !strcmp(*++argv, "-l"))
     log = true;
 
   int ret_code;
@@ -310,22 +315,40 @@ int main(int argc, char **argv) {
     json_object_object_get_ex(cont, "name", &ref);
 
     const char *title = json_object_get_string(ref);
-    if (strcmp("Sway Expose", title) != 0) {
+
+    if (title && strcmp("Sway Expose", title)) {
       json_object *focused;
-      if (json_object_object_get_ex(cont, "focused", &focused) &&
-          json_object_get_boolean(focused)) {
+
+      if (!strcmp("close", json_object_get_string(stat))) {
+        json_object *node;
+
+        json_object_object_get_ex(cont, "id", &node);
+        int uid = json_object_get_int(node);
+        char uuid[INTS_MAX_BNDRY];
+        snprintf(uuid, INTS_MAX_BNDRY, "%d", uid);
+
+        log("Window %d closed, deleting cache.", uid);
+
+        char *win_fn = malloc(strlen(getenv("EXPOSWAYDIR")) + strlen(uuid) + 5);
+        strcat(strcpy(win_fn, getenv("EXPOSWAYDIR")), uuid);
+        unlink(win_fn);
+        strcat(win_fn, ".png");
+        unlink(win_fn);
+        free(win_fn);
+      } else if (json_object_object_get_ex(cont, "focused", &focused) &&
+                 json_object_get_boolean(focused)) {
         const char *state = json_object_get_string(stat);
-        if (strcmp("focus", state) == 0 || strcmp("title", state) == 0 ||
-            strcmp("move", state) == 0 ||
-            strcmp("fullscreen_mode", state) == 0 ||
-            strcmp("floating", state) == 0) {
+
+        if (!strcmp("focus", state) || !strcmp("title", state) ||
+            !strcmp("move", state) || !strcmp("fullscreen_mode", state) ||
+            !strcmp("floating", state)) {
           json_object *node, *rect;
           json_object *xcr, *ycr, *width, *height;
 
           json_object_object_get_ex(cont, "id", &node);
           int uid = json_object_get_int(node);
-          char uuid[17];
-          snprintf(uuid, 16, "%d", uid);
+          char uuid[INTS_MAX_BNDRY];
+          snprintf(uuid, INTS_MAX_BNDRY, "%d", uid);
 
           json_object_object_get_ex(cont, "rect", &rect);
           json_object_object_get_ex(rect, "x", &xcr);
@@ -338,7 +361,7 @@ int main(int argc, char **argv) {
           int ht = json_object_get_int(height);
 
           log("Window %d (%s) with changed mode (%s) detected, with coordinate "
-              "(%d,%d) and geometry %dx%d",
+              "(%d,%d) and geometry %dx%d.",
               uid, title, state, x, y, wd, ht);
 
           char *win_fn =
@@ -349,27 +372,10 @@ int main(int argc, char **argv) {
           fprintf(win_fp, "%d,%d %dx%d %s", x, y, wd, ht, title);
           fclose(win_fp);
 
-          char grim[72];
-          snprintf(grim, 72, "grim -g \"%d,%d %dx%d\" %s%d.png", x, y, wd, ht,
-                   getenv("EXPOSWAYDIR"), uid);
+          char grim[SYSM_MAX_LNGTH];
+          snprintf(grim, SYSM_MAX_LNGTH, "grim -g \"%d,%d %dx%d\" %s%d.png", x,
+                   y, wd, ht, getenv("EXPOSWAYDIR"), uid);
           system(grim);
-        } else if (strcmp("close", state)) {
-          json_object *node;
-
-          json_object_object_get_ex(cont, "id", &node);
-          int uid = json_object_get_int(node);
-          char uuid[17];
-          snprintf(uuid, 16, "%d", uid);
-
-          log("Window %d closed, deleting cache.", uid);
-
-          char *win_fn =
-              malloc(strlen(getenv("EXPOSWAYDIR")) + strlen(uuid) + 5);
-          strcat(strcpy(win_fn, getenv("EXPOSWAYDIR")), uuid);
-          unlink(win_fn);
-          strcat(win_fn, ".png");
-          unlink(win_fn);
-          free(win_fn);
         }
       }
     }

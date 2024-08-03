@@ -18,6 +18,15 @@
 #include <wayland-client.h>
 #include <xkbcommon/xkbcommon.h>
 
+#define FRAME_CLR 16, 102, 130 /* frame color */
+#define FRAME_WDH 1.6          /* frame width */
+#define FRAME_SEP 2            /* frame seperation */
+#define TITLE_CLR 1, 1, 1      /* title font color */
+#define TITLE_SZE 12           /* title font size */
+#define DELAY_SEC 0.36         /* grim shot delay */
+#define MARGN_RTO 0.07f        /* window-margin factor */
+#define COVGT_TOL 0.2f         /* binary search tolerance */
+#define EPACK_RTO 0.9f         /* ratio of packing and display */
 #define ASSERT(condition, message)                                             \
   do {                                                                         \
     if (!(condition)) {                                                        \
@@ -426,9 +435,9 @@ void _phantom(struct client_state *state) {
             ? state->display_height
             : state->wl_window[i].height;
     state->wl_window[i].phantom_width +=
-        2 * state->wl_window[i].phantom_width * MARGIN_RATIO;
+        2 * state->wl_window[i].phantom_width * MARGN_RTO;
     state->wl_window[i].phantom_height +=
-        2 * state->wl_window[i].phantom_height * MARGIN_RATIO;
+        2 * state->wl_window[i].phantom_height * MARGN_RTO;
     state->wl_window[i].scale_factor = 1;
   }
 }
@@ -496,8 +505,8 @@ void _refine(tuple pack, struct client_state *state) {
   float width_ratio = (float)pack.var1 / (float)state->display_width;
   float height_ratio = (float)pack.var2 / (float)state->display_height;
   float scale_factor = width_ratio > height_ratio
-                           ? state->display_width * PACK_RATIO / pack.var1
-                           : state->display_height * PACK_RATIO / pack.var2;
+                           ? state->display_width * EPACK_RTO / pack.var1
+                           : state->display_height * EPACK_RTO / pack.var2;
 
   for (int i = 0, level = 0, boundary = 0, track = 0, height = 0;
        i < state->window_count; i++) {
@@ -599,7 +608,7 @@ static void _title(struct client_state *state, int n) {
   pango_font_description_set_family(font_description, "monospace");
   pango_font_description_set_weight(font_description, PANGO_WEIGHT_NORMAL);
   pango_font_description_set_absolute_size(font_description,
-                                           TITLE_SIZE * PANGO_SCALE);
+                                           TITLE_SZE * PANGO_SCALE);
 
   PangoLayout *layout;
   layout = pango_cairo_create_layout(state->cr);
@@ -652,8 +661,7 @@ static struct wl_buffer *draw_cairo(struct client_state *state) {
 
   state->surface = cairo_image_surface_create_for_data(
       data, CAIRO_FORMAT_ARGB32, width, height, stride);
-  ASSERT(state->surface != NULL,
-         "cairo_image_surface create failed");
+  ASSERT(state->surface != NULL, "cairo_image_surface create failed");
   state->cr = cairo_create(state->surface);
 
   for (int n = 0; n < state->window_count; n++) {
@@ -778,10 +786,8 @@ static const struct wl_registry_listener wl_registry_listener = {
 };
 
 int main(int argc, char *argv[]) {
-  ASSERT(getenv("EXPOSWAYMON") != NULL,
-         "curcial environment variable unset");
-  ASSERT(getenv("EXPOSWAYDIR") != NULL,
-         "crucial environment variable unset");
+  ASSERT(getenv("EXPOSWAYMON") != NULL, "curcial environment variable unset");
+  ASSERT(getenv("EXPOSWAYDIR") != NULL, "crucial environment variable unset");
   struct client_state state = {0};
 
   FILE *monitor = fopen(getenv("EXPOSWAYMON"), "r");
@@ -805,7 +811,8 @@ int main(int argc, char *argv[]) {
     if (*endptr == '\0') {
       ++numwin;
       sprintf(filepath, "%s%s", getenv("EXPOSWAYDIR"), entry->d_name);
-      state.wl_window = realloc(state.wl_window, numwin * sizeof(*state.wl_window));
+      state.wl_window =
+          realloc(state.wl_window, numwin * sizeof(*state.wl_window));
       ASSERT(state.wl_window != NULL, "reallocate memory failed");
       struct wl_window *instance = &state.wl_window[numwin - 1];
       instance->node = (int)node;
