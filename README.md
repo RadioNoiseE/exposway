@@ -90,4 +90,4 @@ Launch `exposwayd` with the log option `-l`, the log is located at `$EXPOSWAYDIR
 
 ### Contribution
 
-Please adhere to the `LLVM` code style.
+Please adhere to the `LLVM` coding style.
