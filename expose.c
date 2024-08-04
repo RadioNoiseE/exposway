@@ -132,148 +132,98 @@ static void nearest_window(struct client_state *state, char dir) {
 
   state->focus_changed = true;
 
-  int xori, yori;
-  int dist, nwin = -1,
-            near = state->display_width * state->display_width +
-                   state->display_height * state->display_height;
+  int ini_xori, ini_yori;
+  ini_xori = state->wl_window[state->window_focused].xcr +
+             state->wl_window[state->window_focused].width *
+                 state->wl_window[state->window_focused].scale_factor * 0.5;
+  ini_yori = state->wl_window[state->window_focused].ycr +
+             state->wl_window[state->window_focused].height *
+                 state->wl_window[state->window_focused].scale_factor * 0.5;
 
-  switch (dir) {
-  case 'u':
-    xori = state->wl_window[state->window_focused].xcr +
-           state->wl_window[state->window_focused].width *
-               state->wl_window[state->window_focused].scale_factor * 0.5;
-    for (int i = 0; i < state->window_count; i++) {
-      if (state->wl_window[i].xcr < xori &&
+  int esst, curr, alum;
+  esst = state->display_width * state->display_width +
+         state->display_height * state->display_height;
+  alum = state->window_focused;
+
+  for (int i = 0; i < state->window_count; i++) {
+    if (i != state->window_focused) {
+      int current_xori =
           state->wl_window[i].xcr +
-                  state->wl_window[i].width * state->wl_window[i].scale_factor >
-              xori &&
-          state->wl_window[i].ycr <
-              state->wl_window[state->window_focused].ycr) {
-        int xsep =
-            (state->wl_window[i].xcr + state->wl_window[i].width *
-                                           state->wl_window[i].scale_factor *
-                                           0.5) -
-            (state->wl_window[state->window_focused].xcr +
-             state->wl_window[state->window_focused].width *
-                 state->wl_window[state->window_focused].scale_factor * 0.5);
-        int ysep =
-            (state->wl_window[i].ycr - state->wl_window[i].height *
-                                           state->wl_window[i].scale_factor *
-                                           0.5) -
-            (state->wl_window[state->window_focused].ycr +
-             state->wl_window[state->window_focused].height *
-                 state->wl_window[state->window_focused].scale_factor * 0.5);
-        dist = xsep * xsep + ysep * ysep;
-        if (dist < near) {
-          near = dist;
-          nwin = i;
+          state->wl_window[i].width * state->wl_window[i].scale_factor * 0.5;
+      int current_yori =
+          state->wl_window[i].ycr +
+          state->wl_window[i].height * state->wl_window[i].scale_factor * 0.5;
+
+      switch (dir) {
+      case 'l':
+        if (abs(ini_yori - current_yori) < 2) {
+          curr = ini_xori - current_xori;
+          if (curr >= 0 && curr < esst) {
+            esst = curr;
+            alum = i;
+          }
         }
+        break;
+      case 'r':
+        if (abs(ini_yori - current_yori) < 2) {
+          curr = current_xori - ini_xori;
+          if (curr >= 0 && curr < esst) {
+            esst = curr;
+            alum = i;
+          }
+        }
+        break;
+      case 'u':
+        if (ini_yori - current_yori >= 0) {
+          curr = state->wl_window[state->window_focused].xcr >
+                         state->wl_window[i].xcr
+                     ? state->wl_window[i].xcr +
+                           state->wl_window[i].width *
+                               state->wl_window[i].scale_factor -
+                           state->wl_window[state->window_focused].xcr
+                     : state->wl_window[state->window_focused].xcr +
+                           state->wl_window[state->window_focused].width *
+                               state->wl_window[state->window_focused]
+                                   .scale_factor -
+                           state->wl_window[i].xcr;
+          if (curr > 0) {
+            curr = (ini_xori - current_xori) * (ini_xori - current_xori) +
+                   (ini_yori - current_yori) * (ini_yori - current_yori);
+            if (curr < esst) {
+              esst = curr;
+              alum = i;
+            }
+          }
+        }
+        break;
+      case 'd':
+        if (current_yori - ini_yori >= 0) {
+          curr = state->wl_window[state->window_focused].xcr >
+                         state->wl_window[i].xcr
+                     ? state->wl_window[i].xcr +
+                           state->wl_window[i].width *
+                               state->wl_window[i].scale_factor -
+                           state->wl_window[state->window_focused].xcr
+                     : state->wl_window[state->window_focused].xcr +
+                           state->wl_window[state->window_focused].width *
+                               state->wl_window[state->window_focused]
+                                   .scale_factor -
+                           state->wl_window[i].xcr;
+          if (curr > 0) {
+            curr = (ini_xori - current_xori) * (ini_xori - current_xori) +
+                   (ini_yori - current_yori) * (ini_yori - current_yori);
+            if (curr < esst) {
+              esst = curr;
+              alum = i;
+            }
+          }
+        }
+        break;
       }
     }
-    break;
-  case 'd':
-    xori = state->wl_window[state->window_focused].xcr +
-           state->wl_window[state->window_focused].width *
-               state->wl_window[state->window_focused].scale_factor * 0.5;
-    for (int i = 0; i < state->window_count; i++) {
-      if (state->wl_window[i].xcr < xori &&
-          state->wl_window[i].xcr +
-                  state->wl_window[i].width * state->wl_window[i].scale_factor >
-              xori &&
-          state->wl_window[i].ycr >
-              state->wl_window[state->window_focused].ycr) {
-        int xsep =
-            (state->wl_window[i].xcr + state->wl_window[i].width *
-                                           state->wl_window[i].scale_factor *
-                                           0.5) -
-            (state->wl_window[state->window_focused].xcr +
-             state->wl_window[state->window_focused].width *
-                 state->wl_window[state->window_focused].scale_factor * 0.5);
-        int ysep =
-            (state->wl_window[i].ycr - state->wl_window[i].height *
-                                           state->wl_window[i].scale_factor *
-                                           0.5) -
-            (state->wl_window[state->window_focused].ycr +
-             state->wl_window[state->window_focused].height *
-                 state->wl_window[state->window_focused].scale_factor * 0.5);
-        dist = xsep * xsep + ysep * ysep;
-        if (dist < near) {
-          near = dist;
-          nwin = i;
-        }
-      }
-    }
-    break;
-  case 'l':
-    yori = state->wl_window[state->window_focused].ycr +
-           state->wl_window[state->window_focused].height *
-               state->wl_window[state->window_focused].scale_factor * 0.5;
-    for (int i = 0; i < state->window_count; i++) {
-      if (state->wl_window[i].ycr < yori &&
-          state->wl_window[i].ycr + state->wl_window[i].height *
-                                        state->wl_window[i].scale_factor >
-              yori &&
-          state->wl_window[i].xcr <
-              state->wl_window[state->window_focused].xcr) {
-        int xsep =
-            (state->wl_window[i].xcr + state->wl_window[i].width *
-                                           state->wl_window[i].scale_factor *
-                                           0.5) -
-            (state->wl_window[state->window_focused].xcr +
-             state->wl_window[state->window_focused].width *
-                 state->wl_window[state->window_focused].scale_factor * 0.5);
-        int ysep =
-            (state->wl_window[i].ycr - state->wl_window[i].height *
-                                           state->wl_window[i].scale_factor *
-                                           0.5) -
-            (state->wl_window[state->window_focused].ycr +
-             state->wl_window[state->window_focused].height *
-                 state->wl_window[state->window_focused].scale_factor * 0.5);
-        dist = xsep * xsep + ysep * ysep;
-        if (dist < near) {
-          near = dist;
-          nwin = i;
-        }
-      }
-    }
-    break;
-  case 'r':
-    yori = state->wl_window[state->window_focused].ycr +
-           state->wl_window[state->window_focused].height *
-               state->wl_window[state->window_focused].scale_factor * 0.5;
-    for (int i = 0; i < state->window_count; i++) {
-      if (state->wl_window[i].ycr < yori &&
-          state->wl_window[i].ycr + state->wl_window[i].height *
-                                        state->wl_window[i].scale_factor >
-              yori &&
-          state->wl_window[i].xcr >
-              state->wl_window[state->window_focused].xcr) {
-        int xsep =
-            (state->wl_window[i].xcr + state->wl_window[i].width *
-                                           state->wl_window[i].scale_factor *
-                                           0.5) -
-            (state->wl_window[state->window_focused].xcr +
-             state->wl_window[state->window_focused].width *
-                 state->wl_window[state->window_focused].scale_factor * 0.5);
-        int ysep =
-            (state->wl_window[i].ycr - state->wl_window[i].height *
-                                           state->wl_window[i].scale_factor *
-                                           0.5) -
-            (state->wl_window[state->window_focused].ycr +
-             state->wl_window[state->window_focused].height *
-                 state->wl_window[state->window_focused].scale_factor * 0.5);
-        dist = xsep * xsep + ysep * ysep;
-        if (dist < near) {
-          near = dist;
-          nwin = i;
-        }
-      }
-    }
-    break;
   }
 
-  if (nwin > -1 && nwin != state->window_focused)
-    state->window_focused = nwin;
+  state->window_focused = alum;
 
   state->focus_changed = false;
   state->focus_changed_time = clock();
@@ -284,7 +234,7 @@ static void window_focus(int node_id) {
   snprintf(focus_command, sizeof(focus_command),
            "sleep %f; swaymsg [con_id=%d] focus", DELAY_SEC, node_id);
   pid_t exp_pid = fork();
-  ASSERT(exp_pid != 0, "pid fork failed");
+  ASSERT(exp_pid != -1, "pid fork failed");
   execl("/bin/sh", "sh", "-c", focus_command, (char *)NULL);
 }
 
