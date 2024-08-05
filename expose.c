@@ -73,6 +73,7 @@ struct client_state {
   int window_count;
   int window_focused;
   bool frame_draw;
+  bool focus_changing;
   bool focus_changed;
   bool exit;
   clock_t focus_changed_time;
@@ -125,12 +126,12 @@ static void nearest_window(struct client_state *state, char dir) {
       ((double)(current_time - state->focus_changed_time)) / CLOCKS_PER_SEC *
       1000;
 
-  if (state->focus_changed)
+  if (state->focus_changing)
     return;
   else if (time_elapsed_ms < state->xkb_delay)
     return;
 
-  state->focus_changed = true;
+  state->focus_changing = true;
 
   int ini_xori, ini_yori;
   ini_xori = state->wl_window[state->window_focused].xcr +
@@ -225,7 +226,7 @@ static void nearest_window(struct client_state *state, char dir) {
 
   state->window_focused = alum;
 
-  state->focus_changed = false;
+  state->focus_changing = false;
   state->focus_changed_time = clock();
 }
 
@@ -281,6 +282,7 @@ static void wl_keyboard_key(void *data, struct wl_keyboard *wl_keyboard,
       return;
     }
     state->frame_draw = true;
+    state->focus_changed = true;
     nearest_window(state, 'l');
     return;
   case XKB_KEY_Right:
@@ -289,6 +291,7 @@ static void wl_keyboard_key(void *data, struct wl_keyboard *wl_keyboard,
       return;
     }
     state->frame_draw = true;
+    state->focus_changed = true;
     nearest_window(state, 'r');
     return;
   case XKB_KEY_Up:
@@ -297,6 +300,7 @@ static void wl_keyboard_key(void *data, struct wl_keyboard *wl_keyboard,
       return;
     }
     state->frame_draw = true;
+    state->focus_changed = true;
     nearest_window(state, 'u');
     return;
   case XKB_KEY_Down:
@@ -305,6 +309,7 @@ static void wl_keyboard_key(void *data, struct wl_keyboard *wl_keyboard,
       return;
     }
     state->frame_draw = true;
+    state->focus_changed = true;
     nearest_window(state, 'd');
     return;
   case XKB_KEY_space:
@@ -627,29 +632,6 @@ static struct wl_buffer *draw_cairo(struct client_state *state) {
   return buffer;
 }
 
-static const struct wl_callback_listener wl_surface_frame_listener;
-
-static void wl_surface_frame_done(void *data, struct wl_callback *cb,
-                                  uint32_t time) {
-  struct client_state *state = data;
-
-  wl_callback_destroy(cb);
-
-  struct wl_buffer *buffer = draw_cairo(state);
-  ASSERT(buffer != NULL, "draw_cairo failed");
-  wl_surface_attach(state->wl_surface, buffer, 0, 0);
-  wl_surface_damage(state->wl_surface, 0, 0, INT32_MAX, INT32_MAX);
-
-  cb = wl_surface_frame(state->wl_surface);
-  wl_callback_add_listener(cb, &wl_surface_frame_listener, state);
-
-  wl_surface_commit(state->wl_surface);
-}
-
-static const struct wl_callback_listener wl_surface_frame_listener = {
-    .done = wl_surface_frame_done,
-};
-
 static void xdg_toplevel_configure(void *data,
                                    struct xdg_toplevel *xdg_toplevel,
                                    int32_t width, int32_t height,
@@ -811,14 +793,18 @@ int main(int argc, char *argv[]) {
 
   wl_surface_commit(state.wl_surface);
 
-  struct wl_callback *cb = wl_surface_frame(state.wl_surface);
-  ASSERT(cb != NULL, "wl_callback hook failed");
-  wl_callback_add_listener(cb, &wl_surface_frame_listener, &state);
-
   while (!state.exit) {
     if (wl_display_dispatch(state.wl_display) == -1) {
       ASSERT(false, "wl_display dispatch failed");
       break;
+    } else {
+      if (state.focus_changed) {
+        struct wl_buffer *buffer = draw_cairo(&state);
+        ASSERT(buffer != NULL, "draw_cairo failed");
+        wl_surface_attach(state.wl_surface, buffer, 0, 0);
+        wl_surface_damage(state.wl_surface, 0, 0, INT32_MAX, INT32_MAX);
+        wl_surface_commit(state.wl_surface);
+      }
     }
   }
 
