@@ -43,7 +43,7 @@ To use a different compiler, you can specify it like this:
 make CC=gcc
 ```
 
-Next, install the binary to your $PATH by `make install`.
+Next, install the binary to your `$PATH` by `make install`.
 The default installation prefix is `/usr/local`.
 To change this, use:
 
