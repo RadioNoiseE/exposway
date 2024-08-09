@@ -88,6 +88,10 @@ Edit the source files `expose.c` and `exposed.c` directly. If unsure, feel free 
 
 Launch `exposwayd` with the log option `-l`, the log is located at `$EXPOSWAYDIR/expose.log`.
 
+### Static analysis
+
+Simply run `make analysis` will do. Clang/LLVM toolchain is needed for this.
+
 ### Contribution
 
-Please adhere to the `LLVM` coding style.
+Please adhere to the `LLVM` coding style. If you use clangd as LSP, `make compdb` will generate the `compile_commands.json` for you.
