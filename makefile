@@ -45,6 +45,9 @@ compdb: expose.c xdg-shell-client-protocol.h xdg-shell-protocol.c exposed.c
 	sed -e '1s/^/[\n/' -e '$$s/,$$/\n]/' *.o.json > compile_commands.json
 	rm expose.o expose.o.json exposed.o exposed.o.json xdg-shell-client-protocol.h xdg-shell-protocol.c
 
+analysis: expose.c xdg-shell-client-protocol.h xdg-shell-protocol.c exposed.c
+	scan-build -V make CC=cc
+
 clean:
 	rm -f exposway exposwayd xdg-shell-client-protocol.h xdg-shell-protocol.c compile_commands.json
 
