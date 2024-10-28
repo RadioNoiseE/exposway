@@ -7,7 +7,7 @@
 
 ## Status
 
-Not stable, under development.
+Stable. Probably no more features will be added.
 
 ## Introduction
 
