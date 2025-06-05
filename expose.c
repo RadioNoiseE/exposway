@@ -47,6 +47,7 @@ struct wl_window {
   int xcr, ycr;
   float scale_factor;
   char *title;
+  cairo_surface_t *snapshot;
 };
 
 struct client_state {
@@ -331,7 +332,10 @@ static void wl_keyboard_modifiers(void *data, struct wl_keyboard *wl_keyboard,
 static void wl_keyboard_repeat_info(void *data, struct wl_keyboard *wl_keyboard,
                                     int32_t rate, int32_t delay) {
   struct client_state *state = data;
-  state->xkb_delay = delay;
+  if (rate > 0)
+    state->xkb_delay = 1000 / rate;
+  else
+    state->xkb_delay = 0;
 }
 
 static void wl_keyboard_enter(void *data, struct wl_keyboard *wl_keyboard,
@@ -524,12 +528,8 @@ static const struct wl_buffer_listener wl_buffer_listener = {
 };
 
 static void _plot(struct client_state *state, int n) {
-  char imagepath[256];
-  snprintf(imagepath, sizeof(imagepath), "%s%d.png", getenv("EXPOSWAYDIR"),
-           state->wl_window[n].node);
-
-  cairo_surface_t *image = cairo_image_surface_create_from_png(imagepath);
-  ASSERT(image != NULL, "failed to create cairo image surface");
+  cairo_surface_t *image = state->wl_window[n].snapshot;
+  ASSERT(image != NULL, "invalid cached cairo surface");
   cairo_save(state->cr);
 
   cairo_translate(state->cr, state->wl_window[n].xcr, state->wl_window[n].ycr);
@@ -553,7 +553,6 @@ static void _plot(struct client_state *state, int n) {
   }
 
   cairo_restore(state->cr);
-  cairo_surface_destroy(image);
 }
 
 static void _title(struct client_state *state, int n) {
@@ -758,6 +757,13 @@ int main(int argc, char *argv[]) {
              "allocate memory for window title failed");
       strcpy(instance->title, title);
       fclose(inst);
+
+      /* Preload window snapshot to avoid expensive disk IO on each redraw */
+      snprintf(filepath, sizeof(filepath), "%s%d.png", getenv("EXPOSWAYDIR"),
+               instance->node);
+      instance->snapshot = cairo_image_surface_create_from_png(filepath);
+      ASSERT(instance->snapshot != NULL,
+             "failed to create cairo image surface");
     }
   }
   closedir(dir);
@@ -808,8 +814,10 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  while (numwin-- > 0)
+  while (numwin-- > 0) {
+    cairo_surface_destroy(state.wl_window[numwin].snapshot);
     free(state.wl_window[numwin].title);
+  }
   free(state.wl_window);
 
   return 0;
