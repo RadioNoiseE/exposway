@@ -1,3 +1,6 @@
+> [!Note]
+> You are suggested to migrate to [windows](https://github.com/RadioNoiseE/windows) instead.
+
 # Exposé your SwayWM
 
 ![EFF](exposway.png)
